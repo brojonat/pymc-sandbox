@@ -1,0 +1,41 @@
+[project]
+dependencies = [
+  "click>=8.2.1",
+  "pymc>=5.25.1",
+]
+description = "Add your description here"
+name = "pymc-vibes"
+readme = "README.md"
+requires-python = ">=3.13"
+version = "0.1.0"
+
+[project.scripts]
+pv = "pymc_vibes.cli:main"
+
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=68.0.0"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+skip-magic-trailing-comma = false
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+python_files = ["test_*.py", "*_test.py", "*_tests.py"]
+testpaths = ["tests"]
