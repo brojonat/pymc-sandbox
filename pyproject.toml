@@ -1,7 +1,11 @@
 [project]
 dependencies = [
   "click>=8.2.1",
+  "fastapi[standard]>=0.116.1",
+  "prometheus-fastapi-instrumentator>=7.1.0",
   "pymc>=5.25.1",
+  "python-jose>=3.5.0",
+  "structlog>=25.4.0",
 ]
 description = "Add your description here"
 name = "pymc-vibes"
@@ -28,7 +32,7 @@ src = ["src", "tests"]
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B"]
+select = ["E", "F", "I"]
 
 [tool.ruff.format]
 indent-style = "space"
