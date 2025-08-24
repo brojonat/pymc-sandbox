@@ -2,15 +2,17 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Dict
 
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from pymc_vibes.server.routers import poisson_cohorts
+from pymc_vibes.server.routers import poisson_cohorts, ui
 
 
 # -------------------------
@@ -89,7 +91,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=os.getenv("SERVICE_NAME", "fastapi-app"), lifespan=lifespan)
+
+# API Routers
 app.include_router(poisson_cohorts.router)
+app.include_router(ui.router)
+
+# Mount the static directory to serve JS, CSS, etc.
+# This must be located in the same directory as this main.py file.
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Prometheus: exposes /metrics by default
 Instrumentator().instrument(app).expose(app)

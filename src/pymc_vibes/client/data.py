@@ -10,6 +10,8 @@ import click
 import ibis
 import pandas as pd
 
+from pymc_vibes.pymc_models.poisson import generate_poisson_events
+
 # Database connection details (mirroring the server)
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 DB_FILE = DATA_DIR / "poisson-cohorts.db"
@@ -116,6 +118,71 @@ def list_events(
 
 
 @data.command()
+@click.option(
+    "--spec",
+    "-s",
+    type=click.File("r"),
+    default="-",
+    help="Path to a JSON spec file for data generation. Defaults to stdin.",
+)
+@click.option(
+    "--out",
+    "-o",
+    type=click.File("w"),
+    default="-",
+    help="Path to write the generated data. Defaults to stdout.",
+)
+@click.option("--seed", type=int, help="Random seed for reproducibility.")
+def generate(spec: click.utils.LazyFile, out: click.utils.LazyFile, seed: Optional[int]):
+    """Generate a synthetic dataset based on a JSON specification."""
+    try:
+        spec_data = json.load(spec)
+    except Exception as e:
+        raise click.UsageError(f"Failed to read or parse spec JSON: {e}")
+
+    all_events = []
+    for i, item in enumerate(spec_data):
+        try:
+            cohort = item["cohort"]
+            event = item["event"]
+            ts_start = datetime.fromisoformat(item["ts_start"])
+            ts_end = datetime.fromisoformat(item["ts_end"])
+            model_spec = item["model"]
+            method = model_spec["method"]
+        except (KeyError, TypeError) as e:
+            raise click.UsageError(f"Invalid spec item, missing key: {e}. Item: {item}")
+
+        if ts_start >= ts_end:
+            raise click.UsageError(f"ts_start must be before ts_end. Item: {item}")
+
+        if method != "poisson":
+            raise click.UsageError(
+                f"Unsupported model method '{method}'. Only 'poisson' is supported. Item: {item}"
+            )
+
+        try:
+            rate = float(model_spec["rate"])
+            unit = model_spec.get("unit", "day")
+            if rate < 0:
+                raise ValueError("Rate must be non-negative.")
+        except (KeyError, TypeError, ValueError) as e:
+            raise click.UsageError(
+                f"Invalid 'poisson' model spec: must include a non-negative 'rate'. Error: {e}. Item: {item}"
+            )
+
+        cohort_seed = seed + i if seed is not None else None
+        generated_timestamps = generate_poisson_events(
+            ts_start=ts_start, ts_end=ts_end, rate=rate, unit=unit, random_seed=cohort_seed
+        )
+
+        for ts_unix in generated_timestamps:
+            ts = datetime.fromtimestamp(ts_unix).isoformat() + "Z"
+            all_events.append({"ts": ts, "cohort": cohort, "event": event})
+
+    json.dump(all_events, out, indent=2)
+
+
+@data.command()
 @click.option("--cohort", type=str, help="Filter by cohort to delete.")
 @click.option("--event", type=str, help="Filter by event type to delete.")
 @click.option("--start", type=click.DateTime(), help="Start timestamp for deletion range.")
@@ -180,6 +247,9 @@ def delete(
         if conditions_sql:
             delete_query += " WHERE " + " AND ".join(conditions_sql)
 
-        conn.sql(delete_query, params=params)
+        # The ibis backend's `sql` method is for building expressions, not execution.
+        # To execute a raw DML statement with parameters, we access the underlying
+        # duckdb connection object (`.con`) and use its `execute` method.
+        conn.con.execute(delete_query, parameters=params)
 
     click.echo(f"Successfully deleted {deleted_count} events.")

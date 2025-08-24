@@ -1,0 +1,112 @@
+[
+  {
+    "cohort": "cohort_0",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 0.1,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_1",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 0.6444444444444444,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_2",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 1.1888888888888889,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_3",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 1.7333333333333334,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_4",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 2.2777777777777777,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_5",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 2.8222222222222223,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_6",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 3.366666666666667,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_7",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 3.911111111111111,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_8",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 4.455555555555555,
+      "unit": "day"
+    }
+  },
+  {
+    "cohort": "cohort_9",
+    "event": "test_event",
+    "ts_start": "2001-01-01T00:00:00",
+    "ts_end": "2009-12-31T23:59:59",
+    "model": {
+      "method": "poisson",
+      "rate": 5,
+      "unit": "day"
+    }
+  }
+]

@@ -15,6 +15,7 @@ A group of commands for managing event data in the database.
 - `pv data upload`: Uploads event data from a specified JSON file into the database.
 - `pv data list`: Lists events from the database with optional filters for cohort, event type, and time range.
 - `pv data delete`: Deletes events from the database that match the specified filters.
+- `pv data generate`: Generates a synthetic dataset based on a JSON specification.
 
 ### `pv migrations`
 
