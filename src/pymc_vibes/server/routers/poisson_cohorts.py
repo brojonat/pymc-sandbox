@@ -9,6 +9,8 @@ import pandas as pd
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from pymc_vibes.pymc_models.poisson import fit_poisson_rate
+
 router = APIRouter()
 
 
@@ -56,6 +58,44 @@ class UploadResponse(BaseModel):
 # -------------------------
 # Routes
 # -------------------------
+@router.get("/poisson-cohorts/fit")
+async def fit_model(
+    start: datetime = Query(...),
+    end: datetime = Query(...),
+    cohort: Optional[list[str]] = Query(default=None),
+    event: Optional[list[str]] = Query(default=None),
+    model: str = Query(default="poisson"),
+    conn: ibis.BaseBackend = Depends(get_ibis_conn),
+) -> dict[str, Any]:
+    if model != "poisson":
+        raise HTTPException(status_code=400, detail=f"Model '{model}' not supported.")
+
+    table = conn.table(EVENTS_TABLE)
+
+    filters = [table.ts >= start, table.ts < end]
+    if cohort:
+        filters.append(table.cohort.isin(cohort))
+    if event:
+        filters.append(table.event.isin(event))
+
+    combined_filter = filters[0]
+    for f in filters[1:]:
+        combined_filter &= f
+    table = table.filter(combined_filter)
+
+    results_df = table.execute()
+    if results_df.empty:
+        return {"results": {}}
+
+    results: dict[str, Any] = {}
+    for cohort_name, cohort_df in results_df.groupby("cohort"):
+        event_timestamps = cohort_df["ts"]
+        idata = fit_poisson_rate(event_timestamps, ts_start=start, ts_end=end)
+        results[cohort_name] = {"posterior_rate": idata.posterior["rate"].values.flatten().tolist()}
+
+    return {"results": results}
+
+
 @router.post("/poisson-cohorts/upload", response_model=UploadResponse)
 async def upload_events(
     payload: UploadRequest = Body(...), conn: ibis.BaseBackend = Depends(get_ibis_conn)
