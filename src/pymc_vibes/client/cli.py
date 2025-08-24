@@ -2,12 +2,15 @@
 
 import click
 
+from .data import data
+from .migrations import migrations
+
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
 def cli() -> None:
-    """pymc-llm-dev command line interface."""
+    """pymc-vibes command line interface."""
     pass
 
 
@@ -18,8 +21,12 @@ def hello(name: str) -> None:
     click.echo(f"Hello, {name}!")
 
 
-def main() -> None:
-    """Entrypoint that invokes the Click CLI group."""
+cli.add_command(data)
+cli.add_command(migrations)
+
+
+def main():
+    """Entry point for the CLI."""
     cli()
 
 
