@@ -19,3 +19,5 @@ This is the Bernoulli Trials example, but we have two (or more) observed streams
 ### Poisson Cohort Rates
 
 Assume you're counting events per unit time. Estimate the underlying rate. Now assume you have many cohorts that produce/emit a variety of events, each with some underlying rate. This system will model the underlying rate for each cohort and event type and then allow you to compare.
+
+TODO: the main issue with this at the moment is that all the cohorts share the same x-axis; really there should be one global axis that shows the posteriors for all cohorts and then each cohort should have an independent x-axis.

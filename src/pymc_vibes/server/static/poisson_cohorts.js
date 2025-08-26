@@ -170,21 +170,7 @@ async function renderCohorts(container, data) {
   const [minTime, maxTime] = d3.extent(processedData, (d) => d.ts);
   const plotHeight = 75;
 
-  // 2. Pre-populate dummy data
-  const cohortEntries = [...sortedCohorts.entries()];
-  for (let i = 0; i < 3 && i < cohortEntries.length; i++) {
-    const [cohortName] = cohortEntries[i];
-    const mean = 5 + i * 2;
-    const stddev = 1 + i * 0.5;
-    const dummyRates = Array.from({ length: 1000 }, () =>
-      d3.randomNormal(mean, stddev)()
-    );
-    posteriorCache[cohortName] = {
-      [cohortName]: { posterior_rate: dummyRates },
-    };
-  }
-
-  // 3. Build the DOM structure first (Pass 1)
+  // 2. Build the DOM structure first (Pass 1)
   container.innerHTML = ""; // Clear previous content
   for (const [cohortName] of sortedCohorts) {
     const cohortWrapper = document.createElement("div");
@@ -206,12 +192,12 @@ async function renderCohorts(container, data) {
     container.appendChild(cohortWrapper);
   }
 
-  // 4. Initial calculation of global domain and drawing of cached posteriors
+  // 3. Initial calculation of global domain and drawing of cached posteriors
   if (Object.keys(posteriorCache).length > 0) {
     updateAndRedrawAll();
   }
 
-  // 5. Now render content into the existing DOM structure (Pass 2)
+  // 4. Now render content into the existing DOM structure (Pass 2)
   for (const [cohortName, cohortData] of sortedCohorts) {
     const timelineContainer = document.getElementById(
       `timeline-container-${cohortName}`
