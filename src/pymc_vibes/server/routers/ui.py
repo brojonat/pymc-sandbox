@@ -21,3 +21,16 @@ async def serve_index():
         )
     with open(index_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
+
+
+@router.get("/poisson-cohorts", response_class=HTMLResponse, include_in_schema=False)
+async def serve_poisson_cohorts():
+    """Serve the poisson_cohorts.html file for the web UI."""
+    page_path = TEMPLATES_DIR / "poisson_cohorts.html"
+    if not page_path.exists():
+        return HTMLResponse(
+            "<html><body><h1>Poisson Cohorts file not found</h1></body></html>",
+            status_code=404,
+        )
+    with open(page_path, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())

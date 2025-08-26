@@ -18,4 +18,4 @@ This is the Bernoulli Trials example, but we have two (or more) observed streams
 
 ### Poisson Cohort Rates
 
-Assume you're counting events per unit time. Estimate the underlying rate. Now assume you have many cohorts that produce/emit a variety of events, each with some underlying rate. This system will model the underlying rate for each cohort and event type and then allow you to compare. It does this dynamically as you add observed data points.
+Assume you're counting events per unit time. Estimate the underlying rate. Now assume you have many cohorts that produce/emit a variety of events, each with some underlying rate. This system will model the underlying rate for each cohort and event type and then allow you to compare.
