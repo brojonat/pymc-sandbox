@@ -12,10 +12,11 @@ def fit_poisson_rate(
     event_timestamps: pd.Series,
     ts_start: datetime,
     ts_end: datetime,
+    population: int = 1,
     unit: str = "day",
 ) -> az.InferenceData:
     """
-    Fit a Bayesian Poisson model to estimate the event rate.
+    Fit a Bayesian Poisson model to estimate the event rate per vehicle.
 
     Parameters
     ----------
@@ -25,13 +26,16 @@ def fit_poisson_rate(
         The start of the observation period.
     ts_end : datetime
         The end of the observation period.
+    population : int, optional
+        The total number of vehicles in the cohort.
     unit : str, optional
         The time unit for the rate (e.g., "second", "hour", "day"), by default "day".
 
     Returns
     -------
     az.InferenceData
-        The ArviZ InferenceData object containing the posterior samples.
+        The ArviZ InferenceData object containing the posterior samples for the
+        per-vehicle rate.
     """
     duration_seconds = (ts_end - ts_start).total_seconds()
     n_events = len(event_timestamps)
@@ -49,11 +53,14 @@ def fit_poisson_rate(
         raise ValueError("Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'.")
 
     with pm.Model() as model:
-        # Prior for the rate (lambda)
+        # Prior for the per-vehicle rate (lambda)
         rate = pm.Exponential("rate", lam=1.0)
 
+        # The effective rate is the per-vehicle rate times the population
+        effective_rate = rate * population
+
         # Likelihood of the observed number of events
-        pm.Poisson("n_events", mu=rate * duration_in_unit, observed=n_events)
+        pm.Poisson("n_events", mu=effective_rate * duration_in_unit, observed=n_events)
 
         # Sample from the posterior
         idata = pm.sample()
@@ -115,6 +122,7 @@ def generate_poisson_events(
     ts_start: datetime,
     ts_end: datetime,
     rate: float,
+    population: int = 1,
     unit: str = "day",
     random_seed: Optional[int] = None,
 ) -> list[float]:
@@ -131,7 +139,9 @@ def generate_poisson_events(
     ts_end : datetime
         The end of the time interval.
     rate : float
-        The average number of events per `unit` of time (lambda).
+        The average number of events per vehicle per `unit` of time (lambda).
+    population : int
+        The total number of vehicles in the cohort.
     unit : str, optional
         The time unit for the rate (e.g., "second", "hour", "day"), by default "day".
 
@@ -140,15 +150,18 @@ def generate_poisson_events(
     list[float]
         A list of generated timestamps as Unix timestamps (floats).
     """
+    # The total rate for the cohort is the per-vehicle rate multiplied by the population
+    total_rate = rate * population
+
     # Normalize rate to be per second for the helper function
     if unit == "day":
-        rate_per_second = rate / (24 * 60 * 60)
+        rate_per_second = total_rate / (24 * 60 * 60)
     elif unit == "hour":
-        rate_per_second = rate / (60 * 60)
+        rate_per_second = total_rate / (60 * 60)
     elif unit == "minute":
-        rate_per_second = rate / 60
+        rate_per_second = total_rate / 60
     elif unit == "second":
-        rate_per_second = rate
+        rate_per_second = total_rate
     else:
         raise ValueError("Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'.")
 
