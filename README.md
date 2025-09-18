@@ -4,20 +4,20 @@ This project is a PyMC example that's developed with the assistance of an LLM to
 
 ## Use Cases
 
-The idea is to provide a finite set of example use cases that leverage PyMC to answer interesting but simple data science problems. This is basically Bayesian Methods for Hackers extended.
+The idea is to provide a finite set of example use cases that leverage PyMC to answer interesting but simple data science problems. This is basically Bayesian Methods for Hackers extended. From a high level, the API is structured around the idea that all these use cases involve starting an "experiment" and then submitting "events" to that experiment.
 
-### Bernoulli Trials
+### Bernoulli Trials (TODO)
 
-Let's assume we have some number of Bernoulli trials governed by some probability `p`. This could represent.
+Let's assume we have some number of Bernoulli trials governed by some probability `p`. This could represent and experiment where users pick A or B.
 
-### AB(C) Test
+### AB(C) Test (TODO)
 
-This is the Bernoulli Trials example, but we have two (or more) observed streams of data and we want to estimate `p` for each of them.
+This is like a click-through experiment. Users are presented with an opportunity to click-through or not (i.e., each interaction is a Bernoulli Trial). Each user is presented with 1 of N different "treatments" (one of which is the null treatment). This results in N observed streams of data and we want to estimate `p` for each of them. Ideally we can show this dynamically in the dashboard. The API is:
 
-### Multi Armed Bandits
+### Multi Armed Bandits (TODO)
+
+This is a classic problem with a solution that is well described (I think) in Bayesian Methods for Hackers. Traditionally it is rather difficult, but with PyMC it's actually quite tractable. This is a great example of modeling expectation values.
 
 ### Poisson Cohort Rates
 
-Assume you're observering individual events. Events may have arbitrary labels associated with them. Estimate the underlying rate (events per unit time). Now imagine you have many cohorts that produce/emit a variety of events, each with some fixed labels and some yet unknown underlying rate. This system will model the underlying rate for each cohort and event type and then allow you to compare them directly. That is the user experience: you select a data generation model and event label fields and we show the posterior for each parameter of the model. The starting example is the poisson model which will allow us to compare rates of different incidents.
-
-TODO: the main issue with this at the moment is that all the cohort plots share the same x-axis; really there should be one global axis that shows the posteriors for all cohorts and then each cohort should have an independent x-axis plot that gives a sense of the width of the distribution.
+Assume you're observering individual events. Events may have arbitrary labels associated with them. Estimate the underlying rate (events per unit time). Now imagine you have many cohorts that produce/emit a variety of events, each with some fixed labels and some yet unknown underlying rate. This system will model the underlying rate for each cohort and event type and then allow you to compare them directly.
