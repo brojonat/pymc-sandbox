@@ -30,7 +30,6 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.ruff]
-line-length = 100
 src = ["src", "tests"]
 target-version = "py313"
 
@@ -40,7 +39,6 @@ select = ["E", "F", "I"]
 [tool.ruff.format]
 indent-style = "space"
 quote-style = "double"
-skip-magic-trailing-comma = false
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"

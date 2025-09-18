@@ -12,7 +12,13 @@ from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from pymc_vibes.server.routers import poisson_cohorts, ui
+from pymc_vibes.server.routers import (
+    ab_test,
+    bernoulli,
+    multi_armed_bandits,
+    poisson_cohorts,
+    ui,
+)
 
 
 # -------------------------
@@ -93,6 +99,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title=os.getenv("SERVICE_NAME", "fastapi-app"), lifespan=lifespan)
 
 # API Routers
+app.include_router(bernoulli.router)
+app.include_router(ab_test.router)
+app.include_router(multi_armed_bandits.router)
 app.include_router(poisson_cohorts.router)
 app.include_router(ui.router)
 
