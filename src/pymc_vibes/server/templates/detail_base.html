@@ -1,0 +1,17 @@
+{% extends "base.html" %} {% block head_css %}
+<style>
+  #chart-wrapper {
+    max-width: {% block chart_wrapper_width %}800px{% endblock %};
+    margin: auto;
+  }
+  {% block extra_css %}{% endblock %}
+</style>
+{% endblock %} {% block content %}
+<h1>{% block page_title %}{% endblock %}</h1>
+<div id="chart-wrapper">{% block chart_content %}{% endblock %}</div>
+{% block extra_content %}{% endblock %} {% endblock %} {% block scripts %}
+<script
+  type="module"
+  src="{% block javascript_module %}{% endblock %}"
+></script>
+{% endblock %}

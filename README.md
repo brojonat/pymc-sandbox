@@ -1,23 +1,130 @@
-# pymc-llm-dev
+# pymc-vibes
 
-This project is a PyMC example that's developed with the assistance of an LLM to make sure we get the modeling syntax and whatnot correct.
+`pymc-vibes` is a demonstration project for managing and visualizing data from various statistical experiments, such as A/B tests, Bernoulli trials, and more. It features a FastAPI backend, a web UI for visualizations, and a powerful command-line interface for programmatic control.
 
-## Use Cases
+The data layer is built on a modern lakehouse architecture using DuckDB and the DuckLake format, with Ibis providing a clean, dataframe-style API.
 
-The idea is to provide a finite set of example use cases that leverage PyMC to answer interesting but simple data science problems. This is basically Bayesian Methods for Hackers extended. From a high level, the API is structured around the idea that all these use cases involve starting an "experiment" and then submitting "events" to that experiment.
+The project provides a framework for several common statistical use cases, including: modeling simple success/failure outcomes with **Bernoulli trials**, comparing conversion rates in **A/B tests**, solving exploration/exploitation problems with **Multi-Armed Bandits**, and estimating event rates over time for different groups with **Poisson Cohorts**. The goal is to provide a practical, hands-on example of how modern data tools can be combined with powerful libraries like PyMC to solve real-world problems.
 
-### Bernoulli Trials (TODO)
+TODO: currently we just have the data layer implemented, we still need to implement the Bayesian inference endpoints which will give us posteriors for each experiment type which we'll then send to the client for visualization.
 
-Let's assume we have some number of Bernoulli trials governed by some probability `p`. This could represent and experiment where users pick A or B.
+## Getting Started
 
-### AB(C) Test (TODO)
+### Prerequisites
 
-This is like a click-through experiment. Users are presented with an opportunity to click-through or not (i.e., each interaction is a Bernoulli Trial). Each user is presented with 1 of N different "treatments" (one of which is the null treatment). This results in N observed streams of data and we want to estimate `p` for each of them. Ideally we can show this dynamically in the dashboard. The API is:
+- Python 3.8+
+- `uv` (or `pip`) for package management
 
-### Multi Armed Bandits (TODO)
+### Installation
 
-This is a classic problem with a solution that is well described (I think) in Bayesian Methods for Hackers. Traditionally it is rather difficult, but with PyMC it's actually quite tractable. This is a great example of modeling expectation values.
+1.  **Clone the repository:**
 
-### Poisson Cohort Rates
+    ```bash
+    git clone <repository-url>
+    cd pymc-vibes
+    ```
 
-Assume you're observering individual events. Events may have arbitrary labels associated with them. Estimate the underlying rate (events per unit time). Now imagine you have many cohorts that produce/emit a variety of events, each with some fixed labels and some yet unknown underlying rate. This system will model the underlying rate for each cohort and event type and then allow you to compare them directly.
+2.  **Install dependencies:**
+
+    This project uses `uv` for dependency management. Install the required packages with:
+
+    ```bash
+    uv pip install -e .
+    ```
+
+    This installs the project in editable mode and makes the `vibes` CLI available.
+
+3.  **Initialize the Database:**
+
+    Before running the server or CLI, you must initialize the DuckLake database. This creates the necessary internal metadata tables.
+
+    ```bash
+    vibes db init
+    ```
+
+## Running the Server
+
+To start the FastAPI server, run the following command:
+
+```bash
+uvicorn pymc_vibes.server.main:app --reload
+```
+
+The server will be available at `http://127.0.0.1:8000`. You can access the web UI by navigating to this address in your browser. The API documentation is available at `http://127.0.0.1:8000/docs`.
+
+## Usage: A Complete CLI Workflow
+
+The `vibes` CLI is the primary way to manage experiments and data. The following is a comprehensive walkthrough of a typical workflow.
+
+### Step 1: Generate Initial Data
+
+First, let's generate some dummy data for a new A/B test. The `generate` command can output to a file or `stdout`. We'll save it to a file.
+
+```bash
+vibes generate ab-test --num-events 200 --output initial_data.json
+```
+
+_Note: The confirmation message is sent to `stderr`, so it won't interfere with the JSON output._
+
+### Step 2: Create a New Experiment
+
+Now, we'll use the data file to create our first experiment. The `create` command requires a unique name for the experiment (which will be the table name), a user-friendly display name, the experiment type, and the path to the initial data file.
+
+```bash
+vibes experiments create ab_test_1 \
+    --display-name "Test 1: Homepage Button Color" \
+    --type "ab-test" \
+    initial_data.json
+```
+
+This command creates a new table named `ab_test_1` in DuckLake, populates it with the data from `initial_data.json`, and adds a record to the central metadata table.
+
+### Step 3: Generate and Upload More Data
+
+Experiments are rarely static. Let's generate more data and upload it to our existing experiment.
+
+First, generate a new batch of data:
+
+```bash
+vibes generate ab-test --num-events 300 --output new_events.json
+```
+
+Next, use the `events upload` command to append this data to the `ab_test_1` table:
+
+```bash
+vibes events upload ab_test_1 new_events.json
+```
+
+### Step 4: Create a Second Experiment
+
+Let's create another experiment, this time for a Bernoulli trial. We can generate the data and pipe it directly to the `create` command without saving it to a file first.
+
+```bash
+vibes generate bernoulli --num-events 150 | \
+    vibes experiments create bernoulli_trial_1 \
+    --display-name "User Engagement Action" \
+    --type "bernoulli" \
+    -
+```
+
+_Note: The `-` at the end of the `create` command tells it to read from `stdin`._
+
+### Step 5: List All Experiments
+
+Now that we have a couple of experiments, we can list them to see their metadata.
+
+```bash
+vibes experiments list
+```
+
+This command queries the central metadata table and returns a JSON array of all registered experiments.
+
+### Step 6: Delete an Experiment
+
+Finally, to clean up, you can delete an experiment. This will drop the experiment's data table and remove its record from the metadata table.
+
+```bash
+vibes experiments delete ab_test_1
+```
+
+This completes a typical lifecycle of creating, updating, and managing experiments via the CLI.

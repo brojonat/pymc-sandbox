@@ -2,76 +2,130 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Request
+from fastapi.templating import Jinja2Templates
+
+from pymc_vibes.server.database import get_db_connection
 
 router = APIRouter()
 
 # Path to the templates directory
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
-@router.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def serve_index():
+@router.get("/", include_in_schema=False)
+async def serve_index(request: Request):
     """Serve the main index.html file for the web UI."""
-    index_path = TEMPLATES_DIR / "index.html"
-    if not index_path.exists():
-        return HTMLResponse(
-            "<html><body><h1>Index file not found</h1></body></html>", status_code=404
-        )
-    with open(index_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
-@router.get("/poisson-cohorts", response_class=HTMLResponse, include_in_schema=False)
-async def serve_poisson_cohorts():
-    """Serve the poisson_cohorts.html file for the web UI."""
-    page_path = TEMPLATES_DIR / "poisson_cohorts.html"
-    if not page_path.exists():
-        return HTMLResponse(
-            "<html><body><h1>Poisson Cohorts file not found</h1></body></html>",
-            status_code=404,
-        )
-    with open(page_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+# --- A/B Test Routes ---
+@router.get("/ab-test", include_in_schema=False)
+async def serve_ab_test_list(request: Request):
+    """Serve the list of A/B test experiments."""
+    con = get_db_connection()
+    metadata = con.table("_vibes_experiments_metadata")
+    ab_tests = metadata.filter(metadata.type == "ab-test").execute()
+
+    return templates.TemplateResponse(
+        "experiments_list.html",
+        {
+            "request": request,
+            "page_title": "A/B Tests",
+            "table_headers": ["Name", "Status", "Created"],
+            "experiments": ab_tests.to_dict("records"),
+            "experiment_type": "ab-test",
+        },
+    )
 
 
-@router.get("/bernoulli", response_class=HTMLResponse, include_in_schema=False)
-async def serve_bernoulli():
-    """Serve the bernoulli.html file for the web UI."""
-    page_path = TEMPLATES_DIR / "bernoulli.html"
-    if not page_path.exists():
-        return HTMLResponse(
-            "<html><body><h1>Bernoulli file not found</h1></body></html>",
-            status_code=404,
-        )
-    with open(page_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+@router.get("/ab-test/{experiment_id}", include_in_schema=False)
+async def serve_ab_test_detail(request: Request, experiment_id: str):
+    """Serve the detail page for a specific A/B test experiment."""
+    return templates.TemplateResponse(
+        "ab_test.html", {"request": request, "experiment_id": experiment_id}
+    )
 
 
-@router.get("/ab-test", response_class=HTMLResponse, include_in_schema=False)
-async def serve_ab_test():
-    """Serve the ab_test.html file for the web UI."""
-    page_path = TEMPLATES_DIR / "ab_test.html"
-    if not page_path.exists():
-        return HTMLResponse(
-            "<html><body><h1>A/B Test file not found</h1></body></html>",
-            status_code=404,
-        )
-    with open(page_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+# --- Bernoulli Routes ---
+@router.get("/bernoulli", include_in_schema=False)
+async def serve_bernoulli_list(request: Request):
+    """Serve the list of Bernoulli experiments."""
+    con = get_db_connection()
+    metadata = con.table("_vibes_experiments_metadata")
+    bernoulli_tests = metadata.filter(metadata.type == "bernoulli").execute()
+    return templates.TemplateResponse(
+        "experiments_list.html",
+        {
+            "request": request,
+            "page_title": "Bernoulli Trials",
+            "table_headers": ["Name", "Status", "Created"],
+            "experiments": bernoulli_tests.to_dict("records"),
+            "experiment_type": "bernoulli",
+        },
+    )
 
 
-@router.get(
-    "/multi-armed-bandits", response_class=HTMLResponse, include_in_schema=False
-)
-async def serve_multi_armed_bandits():
-    """Serve the multi_armed_bandits.html file for the web UI."""
-    page_path = TEMPLATES_DIR / "multi_armed_bandits.html"
-    if not page_path.exists():
-        return HTMLResponse(
-            "<html><body><h1>Multi-Armed Bandits file not found</h1></body></html>",
-            status_code=404,
-        )
-    with open(page_path, "r", encoding="utf-8") as f:
-        return HTMLResponse(content=f.read())
+@router.get("/bernoulli/{experiment_id}", include_in_schema=False)
+async def serve_bernoulli_detail(request: Request, experiment_id: str):
+    """Serve the detail page for a specific Bernoulli experiment."""
+    return templates.TemplateResponse(
+        "bernoulli.html", {"request": request, "experiment_id": experiment_id}
+    )
+
+
+# --- Multi-Armed Bandit Routes ---
+@router.get("/multi-armed-bandits", include_in_schema=False)
+async def serve_multi_armed_bandits_list(request: Request):
+    """Serve the list of Multi-Armed Bandit experiments."""
+    con = get_db_connection()
+    metadata = con.table("_vibes_experiments_metadata")
+    mab_tests = metadata.filter(metadata.type == "multi-armed-bandits").execute()
+    return templates.TemplateResponse(
+        "experiments_list.html",
+        {
+            "request": request,
+            "page_title": "Multi-Armed Bandits",
+            "table_headers": ["Name", "Status", "Created"],
+            "experiments": mab_tests.to_dict("records"),
+            "experiment_type": "multi-armed-bandits",
+        },
+    )
+
+
+@router.get("/multi-armed-bandits/{experiment_id}", include_in_schema=False)
+async def serve_multi_armed_bandits_detail(request: Request, experiment_id: str):
+    """Serve the detail page for a specific Multi-Armed Bandit experiment."""
+    return templates.TemplateResponse(
+        "multi_armed_bandits.html",
+        {"request": request, "experiment_id": experiment_id},
+    )
+
+
+# --- Poisson Cohorts Routes ---
+@router.get("/poisson-cohorts", include_in_schema=False)
+async def serve_poisson_cohorts_list(request: Request):
+    """Serve the list of Poisson Cohort experiments."""
+    con = get_db_connection()
+    metadata = con.table("_vibes_experiments_metadata")
+    poisson_tests = metadata.filter(metadata.type == "poisson-cohorts").execute()
+    return templates.TemplateResponse(
+        "experiments_list.html",
+        {
+            "request": request,
+            "page_title": "Poisson Cohorts",
+            "table_headers": ["Name", "Status", "Created"],
+            "experiments": poisson_tests.to_dict("records"),
+            "experiment_type": "poisson-cohorts",
+        },
+    )
+
+
+@router.get("/poisson-cohorts/{experiment_id}", include_in_schema=False)
+async def serve_poisson_cohorts_detail(request: Request, experiment_id: str):
+    """Serve the detail page for a specific Poisson Cohort experiment."""
+    return templates.TemplateResponse(
+        "poisson_cohorts.html",
+        {"request": request, "experiment_id": experiment_id},
+    )

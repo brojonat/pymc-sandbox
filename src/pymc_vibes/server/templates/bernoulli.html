@@ -1,23 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>pymc-vibes: Bernoulli Trial</title>
-    <style>
-      #chart-wrapper {
-        max-width: 800px;
-        margin: auto;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Bernoulli Trial</h1>
-    <div id="chart-wrapper">
-      <div id="chart-container"></div>
-      <hr />
-      <div id="trials-container"></div>
-    </div>
-    <script type="module" src="/static/bernoulli.js"></script>
-  </body>
-</html>
+{% extends "detail_base.html" %} {% block title %}pymc-vibes: Bernoulli Trial{%
+endblock %} {% block page_title %}Bernoulli Trial{% endblock %} {% block
+chart_content %}
+<div id="chart-container"></div>
+<hr />
+<div id="trials-container"></div>
+{% endblock %} {% block javascript_module %}/static/bernoulli.js{% endblock %}

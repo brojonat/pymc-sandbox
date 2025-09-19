@@ -1,0 +1,39 @@
+{% extends "base.html" %} {% block title %}pymc-vibes: {{ page_title }}{%
+endblock %} {% block content %}
+<h1>{{ page_title }}</h1>
+{# This template expects the following variables to be passed from the backend:
+- page_title: The title to display on the page. - table_headers: A list of
+strings for the table column headers. - experiments: A list of experiment
+objects, where each object has properties matching the data needed below (e.g.,
+id, name, status). - experiment_type: A string representing the type of
+experiment for URL building (e.g., 'ab-test', 'bernoulli'). #}
+<table>
+  <thead>
+    <tr>
+      {% for header in table_headers %}
+      <th>{{ header }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for experiment in experiments %}
+    <tr>
+      {# This assumes a standard structure for experiments. #} {# You may need
+      to adjust property names (e.g., experiment.name) #} {# based on your
+      actual data model. #}
+      <td>
+        <a href="/{{ experiment_type }}/{{ experiment.id }}"
+          >{{ experiment.name }}</a
+        >
+      </td>
+      <td>{{ experiment.status }}</td>
+      <td>{{ experiment.created_at }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="{{ table_headers|length }}">No experiments found.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

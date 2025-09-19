@@ -12,9 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from pymc_vibes.server.database import initialize_metadata
 from pymc_vibes.server.routers import (
     ab_test,
     bernoulli,
+    events,
+    experiments,
     multi_armed_bandits,
     poisson_cohorts,
     ui,
@@ -90,6 +93,7 @@ def require_claims(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("service.startup")
+    initialize_metadata()
     try:
         yield
     finally:
@@ -104,6 +108,8 @@ app.include_router(ab_test.router)
 app.include_router(multi_armed_bandits.router)
 app.include_router(poisson_cohorts.router)
 app.include_router(ui.router)
+app.include_router(events.router)
+app.include_router(experiments.router)
 
 # Mount the static directory to serve JS, CSS, etc.
 # This must be located in the same directory as this main.py file.
