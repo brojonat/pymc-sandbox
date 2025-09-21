@@ -6,7 +6,7 @@ The data layer is built on a modern lakehouse architecture using DuckDB and the 
 
 The project provides a framework for several common statistical use cases, including: modeling simple success/failure outcomes with **Bernoulli trials**, comparing conversion rates in **A/B tests**, solving exploration/exploitation problems with **Multi-Armed Bandits**, and estimating event rates over time for different groups with **Poisson Cohorts**. The goal is to provide a practical, hands-on example of how modern data tools can be combined with powerful libraries like PyMC to solve real-world problems.
 
-TODO: currently we just have the data layer implemented, we still need to implement the Bayesian inference endpoints which will give us posteriors for each experiment type which we'll then send to the client for visualization.
+TODO: currently we just have the data layer implemented, we still need to implement the Bayesian inference endpoints which will give us posteriors for each experiment type which we'll then send to the client for visualization. The way this will (probably) work is that we fit the data for an experiment and output the posterior distributions to a
 
 ## Getting Started
 
@@ -20,26 +20,40 @@ TODO: currently we just have the data layer implemented, we still need to implem
 1.  **Clone the repository:**
 
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/pymc-labs/pymc-vibes.git
     cd pymc-vibes
     ```
 
-2.  **Install dependencies:**
+2.  **Set up the local environment:**
 
-    This project uses `uv` for dependency management. Install the required packages with:
+    This project includes a Docker Compose file to spin up a local Postgres database and a MinIO S3-compatible object store.
+
+    ```bash
+    docker-compose up -d
+    ```
+
+    You will also need to create a bucket in MinIO for DuckLake to use. You can do this through the MinIO console at [http://localhost:9090](http://localhost:9090). Use `minioadmin` for both the username and password. Create a bucket named `ducklake`.
+
+3.  **Install dependencies:**
 
     ```bash
     uv pip install -e .
     ```
 
-    This installs the project in editable mode and makes the `vibes` CLI available.
+4.  **Initialize the Database:**
 
-3.  **Initialize the Database:**
-
-    Before running the server or CLI, you must initialize the DuckLake database. This creates the necessary internal metadata tables.
+    Before running the server or CLI, you must initialize the database. This creates the necessary internal metadata tables.
 
     ```bash
     vibes db init
+    ```
+
+    You can verify the test table was created
+
+    ```bash
+    vibes db list-tables
+    # inspect output
+    vibes db drop-table test_events
     ```
 
 ## Running the Server

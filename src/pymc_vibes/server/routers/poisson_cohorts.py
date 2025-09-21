@@ -1,76 +1,48 @@
 """poisson_cohorts.py"""
 
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Optional
 
 import ibis
-import pandas as pd
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from pymc_vibes.pymc_models.poisson import fit_poisson_rate
+from pymc_vibes.server.db import get_db_connection
 
-router = APIRouter()
-
-
-# -------------------------
-# Storage (Ibis on DuckDB)
-# -------------------------
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-DB_FILE = DATA_DIR / "poisson-cohorts.db"
-EVENTS_TABLE = "events"
-
-
-def get_ibis_conn():
-    """FastAPI dependency to manage Ibis connections to DuckDB."""
-    if not DB_FILE.exists():
-        raise HTTPException(
-            status_code=500,
-            detail=f"Database file not found at {DB_FILE}. Run 'pv migrations init-db' to initialize it.",
-        )
-    conn = ibis.duckdb.connect(database=str(DB_FILE))
-    if EVENTS_TABLE not in conn.list_tables():
-        raise HTTPException(
-            status_code=500,
-            detail=f"Table '{EVENTS_TABLE}' not found in the database. Run 'pv migrations init-db' to create it.",
-        )
-    yield conn
-
-
-# -------------------------
-# Schemas
-# -------------------------
-class EventRow(BaseModel):
-    ts: datetime = Field(..., description="ISO8601 timestamp of the event")
-    cohort: str = Field(..., min_length=1)
-    event: str = Field(..., min_length=1)
-
-
-class UploadRequest(BaseModel):
-    rows: list[EventRow]
-
-
-class UploadResponse(BaseModel):
-    ingested: int
+router = APIRouter(
+    prefix="/poisson-cohorts/{experiment_name}", tags=["poisson-cohorts"]
+)
 
 
 # -------------------------
 # Routes
 # -------------------------
-@router.get("/poisson-cohorts/fit")
+@router.get("/fit")
 async def fit_model(
+    experiment_name: str,
     start: datetime = Query(...),
     end: datetime = Query(...),
     cohort: Optional[list[str]] = Query(default=None),
     event: Optional[list[str]] = Query(default=None),
     model: str = Query(default="poisson"),
-    conn: ibis.BaseBackend = Depends(get_ibis_conn),
+    conn: ibis.BaseBackend = Depends(get_db_connection),
 ) -> dict[str, Any]:
+    """Fit a Poisson rate model for a given experiment and time range."""
     if model != "poisson":
         raise HTTPException(status_code=400, detail=f"Model '{model}' not supported.")
 
-    table = conn.table(EVENTS_TABLE)
+    metadata_table = conn.table("_vibes_experiments_metadata")
+    experiment = metadata_table.filter(
+        (metadata_table.name == experiment_name)
+        & (metadata_table.type == "poisson-cohorts")
+    ).execute()
+    if experiment.empty:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Poisson cohorts experiment '{experiment_name}' not found.",
+        )
+
+    table = conn.table(experiment_name)
 
     filters = [table.ts >= start, table.ts < end]
     if cohort:
@@ -91,35 +63,37 @@ async def fit_model(
     for cohort_name, cohort_df in results_df.groupby("cohort"):
         event_timestamps = cohort_df["ts"]
         idata = fit_poisson_rate(event_timestamps, ts_start=start, ts_end=end)
-        results[cohort_name] = {"posterior_rate": idata.posterior["rate"].values.flatten().tolist()}
+        results[cohort_name] = {
+            "posterior_rate": idata.posterior["rate"].values.flatten().tolist()
+        }
 
     return {"results": results}
 
 
-@router.post("/poisson-cohorts/upload", response_model=UploadResponse)
-async def upload_events(
-    payload: UploadRequest = Body(...), conn: ibis.BaseBackend = Depends(get_ibis_conn)
-) -> UploadResponse:
-    if not payload.rows:
-        return UploadResponse(ingested=0)
-
-    df = pd.DataFrame([row.dict() for row in payload.rows])
-    conn.insert(EVENTS_TABLE, df)
-
-    return UploadResponse(ingested=len(payload.rows))
-
-
-@router.get("/poisson-cohorts/list")
+@router.get("/list")
 async def list_events(
+    experiment_name: str,
     cohort: Optional[str] = Query(default=None),
     event: Optional[str] = Query(default=None),
     start: Optional[datetime] = Query(default=None),
     end: Optional[datetime] = Query(default=None),
     limit: int = Query(default=1000, ge=1, le=100000),
     offset: int = Query(default=0, ge=0),
-    conn: ibis.BaseBackend = Depends(get_ibis_conn),
+    conn: ibis.BaseBackend = Depends(get_db_connection),
 ) -> dict[str, Any]:
-    table = conn.table(EVENTS_TABLE)
+    """List events for a given Poisson cohorts experiment."""
+    metadata_table = conn.table("_vibes_experiments_metadata")
+    experiment = metadata_table.filter(
+        (metadata_table.name == experiment_name)
+        & (metadata_table.type == "poisson-cohorts")
+    ).execute()
+    if experiment.empty:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Poisson cohorts experiment '{experiment_name}' not found.",
+        )
+
+    table = conn.table(experiment_name)
 
     filters = []
     if cohort:
@@ -140,24 +114,41 @@ async def list_events(
     query = table.order_by("ts").limit(limit, offset=offset)
     results_df = query.execute()
 
-    return {"rows": results_df.to_dict("records"), "count": len(results_df), "offset": offset}
+    return {
+        "rows": results_df.to_dict("records"),
+        "count": len(results_df),
+        "offset": offset,
+    }
 
 
-@router.delete("/poisson-cohorts/delete")
+@router.delete("/delete")
 async def delete_endpoint(
+    experiment_name: str,
     cohort: Optional[str] = Query(default=None),
     event: Optional[str] = Query(default=None),
     start: Optional[datetime] = Query(default=None),
     end: Optional[datetime] = Query(default=None),
-    conn: ibis.BaseBackend = Depends(get_ibis_conn),
+    conn: ibis.BaseBackend = Depends(get_db_connection),
 ) -> dict[str, Any]:
+    """Delete events from a given Poisson cohorts experiment based on filters."""
     if all(v is None for v in (cohort, event, start, end)):
         raise HTTPException(
             status_code=400,
             detail="Provide at least one filter (cohort, event, start, end) to delete.",
         )
 
-    table = conn.table(EVENTS_TABLE)
+    metadata_table = conn.table("_vibes_experiments_metadata")
+    experiment = metadata_table.filter(
+        (metadata_table.name == experiment_name)
+        & (metadata_table.type == "poisson-cohorts")
+    ).execute()
+    if experiment.empty:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Poisson cohorts experiment '{experiment_name}' not found.",
+        )
+
+    table = conn.table(experiment_name)
     filters = []
     if cohort:
         filters.append(table.cohort == cohort)
@@ -175,7 +166,7 @@ async def delete_endpoint(
     to_delete_expr = table.filter(combined_filter)
     deleted_count = to_delete_expr.count().execute()
 
-    delete_query = f"DELETE FROM {EVENTS_TABLE}"
+    delete_query = f"DELETE FROM {experiment_name}"
     conditions_sql = []
     params = []
 
@@ -195,6 +186,6 @@ async def delete_endpoint(
     if conditions_sql:
         delete_query += " WHERE " + " AND ".join(conditions_sql)
 
-    conn.sql(delete_query, params=params)
+    conn.con.execute(delete_query, parameters=params)
 
-    return {"deleted": deleted_count}
+    return {"deleted": int(deleted_count)}

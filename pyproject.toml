@@ -13,6 +13,7 @@ dependencies = [
 ]
 description = "A vibes CLI for pymc-vibes"
 name = "pymc-vibes"
+requires-python = ">=3.13"
 version = "0.1.0"
 
 [project.scripts]

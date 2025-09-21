@@ -6,7 +6,7 @@ from datetime import datetime
 import pyarrow as pa
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from pymc_vibes.server.database import get_db_connection
+from pymc_vibes.server.db import get_db_connection
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 

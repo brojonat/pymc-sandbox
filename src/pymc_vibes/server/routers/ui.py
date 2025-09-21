@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 
-from pymc_vibes.server.database import get_db_connection
+from pymc_vibes.server.db import get_db_connection
 
 router = APIRouter()
 

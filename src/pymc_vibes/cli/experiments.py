@@ -76,9 +76,12 @@ def delete_experiment(experiment_name: str):
     client = APIClient()
     try:
         client.delete_experiment(experiment_name)
-        # 204 No Content has no body, so we print our own success message to stderr
-        click.echo(f"Successfully deleted experiment '{experiment_name}'.", err=True)
+        # On success, list the remaining experiments to confirm the new state
+        response = client.list_experiments()
+        click.echo(json.dumps(response.json(), indent=2))
     except httpx.HTTPStatusError as e:
+        # If the delete failed, it might be because the experiment was already gone (404)
+        # Or it could be another server error.
         error_details = e.response.json()
         click.echo(json.dumps(error_details, indent=2), err=True)
     except httpx.RequestError as e:
