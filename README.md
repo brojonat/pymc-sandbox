@@ -42,19 +42,17 @@ TODO: currently we just have the data layer implemented, we still need to implem
 
 4.  **Initialize the Database:**
 
-    Before running the server or CLI, you must initialize the database. This creates the necessary internal metadata tables.
+Before running the server or CLI, you must initialize the database. This creates the necessary internal metadata tables. You will get an error if you try running the server before initializing the DB.
 
-    ```bash
-    vibes db init
-    ```
+```bash
+vibes db init
+```
 
-    You can verify the test table was created
+You can verify the test table was created:
 
-    ```bash
-    vibes db list-tables
-    # inspect output
-    vibes db drop-table test_events
-    ```
+```bash
+vibes db list-tables
+```
 
 ## Running the Server
 
@@ -62,6 +60,8 @@ To start the FastAPI server, run the following command:
 
 ```bash
 uvicorn pymc_vibes.server.main:app --reload
+# or more conveniently, use the make target
+make run-server
 ```
 
 The server will be available at `http://127.0.0.1:8000`. You can access the web UI by navigating to this address in your browser. The API documentation is available at `http://127.0.0.1:8000/docs`.
@@ -72,17 +72,15 @@ The `vibes` CLI is the primary way to manage experiments and data. The following
 
 ### Step 1: Generate Initial Data
 
-First, let's generate some dummy data for a new A/B test. The `generate` command can output to a file or `stdout`. We'll save it to a file.
+First, let's generate some dummy data for a new A/B test. The `generate` command can output to a file or `stdout`. We'll save it to a file but in practice you'd just pipe this to your next command.
 
 ```bash
 vibes generate ab-test --num-events 200 --output initial_data.json
 ```
 
-_Note: The confirmation message is sent to `stderr`, so it won't interfere with the JSON output._
-
 ### Step 2: Create a New Experiment
 
-Now, we'll use the data file to create our first experiment. The `create` command requires a unique name for the experiment (which will be the table name), a user-friendly display name, the experiment type, and the path to the initial data file.
+Now, we'll use the data file to create our first experiment. The `create` command requires a unique name for the experiment (which will be the table name), a user-friendly display name (optional), the experiment type, and the path to the initial data file (defaults to stdin).
 
 ```bash
 vibes experiments create ab_test_1 \
@@ -117,11 +115,8 @@ Let's create another experiment, this time for a Bernoulli trial. We can generat
 vibes generate bernoulli --num-events 150 | \
     vibes experiments create bernoulli_trial_1 \
     --display-name "User Engagement Action" \
-    --type "bernoulli" \
-    -
+    --type "bernoulli"
 ```
-
-_Note: The `-` at the end of the `create` command tells it to read from `stdin`._
 
 ### Step 5: List All Experiments
 

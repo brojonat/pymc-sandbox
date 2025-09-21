@@ -240,7 +240,7 @@ function renderToggle(container, cohortName) {
   container.appendChild(label);
 }
 
-function updateCohortActionPanel(cohortName) {
+async function updateCohortActionPanel(cohortName, minTime, maxTime) {
   const actionContainer = document.getElementById(
     `action-container-${cohortName}`
   );
@@ -255,43 +255,33 @@ function updateCohortActionPanel(cohortName) {
     renderToggle(toggleContainer, cohortName);
   } else {
     // No data: render fit button
-    actionContainer.innerHTML = ""; // Clear any previous content
+    actionContainer.innerHTML = "Fitting model...";
     toggleContainer.innerHTML = ""; // Clear toggle
 
-    const fitButton = document.createElement("button");
-    fitButton.innerText = `Fit ${cohortName}`;
-    actionContainer.appendChild(fitButton);
+    try {
+      const experimentName = container.dataset.experimentName;
+      const response = await fetch(
+        `${API_BASE_URL}/poisson-cohorts/posterior?experiment_name=${experimentName}&start=${minTime.toISOString()}&end=${maxTime.toISOString()}&cohort=${cohortName}`
+      );
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
 
-    fitButton.addEventListener("click", async () => {
-      actionContainer.innerHTML = "Fitting model...";
-      try {
-        const [minTime, maxTime] = [new Date(), new Date()];
-        const response = await fetch(
-          `${API_BASE_URL}/poisson-cohorts/fit?start=${minTime.toISOString()}&end=${maxTime.toISOString()}&cohort=${cohortName}`
-        );
-        if (!response.ok)
-          throw new Error(`HTTP error! status: ${response.status}`);
+      const responseData = await response.json();
+      posteriorCache[cohortName] = responseData.results;
 
-        const responseData = await response.json();
-        posteriorCache[cohortName] = responseData.results;
+      // Update this specific cohort's panel
+      renderPosterior(actionContainer, posteriorCache[cohortName], plotHeight);
+      renderToggle(toggleContainer, cohortName);
 
-        // Update this specific cohort's panel
-        updateCohortActionPanel(cohortName);
-
-        // Redraw global plot
-        const globalContainer = document.getElementById(
-          "global-posterior-container"
-        );
-        renderGlobalPosterior(
-          globalContainer,
-          posteriorCache,
-          cohortVisibility
-        );
-      } catch (error) {
-        console.error("Failed to fetch or render posterior data:", error);
-        actionContainer.innerText = "Failed to load posterior data.";
-      }
-    });
+      // Redraw global plot
+      const globalContainer = document.getElementById(
+        "global-posterior-container"
+      );
+      renderGlobalPosterior(globalContainer, posteriorCache, cohortVisibility);
+    } catch (error) {
+      console.error("Failed to fetch or render posterior data:", error);
+      actionContainer.innerText = "Failed to load posterior data.";
+    }
   }
 }
 
@@ -427,7 +417,7 @@ async function renderCohorts(container, data) {
       minTime,
       maxTime,
     ]);
-    updateCohortActionPanel(cohortName);
+    updateCohortActionPanel(cohortName, minTime, maxTime);
   }
 
   // Initial render of the global plot
@@ -526,8 +516,9 @@ async function main() {
     return;
   }
   try {
+    const experimentName = container.dataset.experimentName;
     const response = await fetch(
-      `${API_BASE_URL}/poisson-cohorts/list?limit=5000`
+      `${API_BASE_URL}/poisson-cohorts/list?experiment_name=${experimentName}&limit=5000`
     );
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 

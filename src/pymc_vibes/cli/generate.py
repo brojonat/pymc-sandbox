@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import click
 import numpy as np
+import pymc as pm
 
 
 @click.group("generate")
@@ -17,14 +18,11 @@ def generate_cli():
 @generate_cli.command("ab-test")
 @click.option("--num-events", "-n", default=100, help="Number of events to generate.")
 @click.option(
-    "--conversion-rate-a",
-    default=0.1,
-    help="The conversion rate for treatment A.",
-)
-@click.option(
-    "--conversion-rate-b",
-    default=0.12,
-    help="The conversion rate for treatment B.",
+    "--variant",
+    "variants",
+    multiple=True,
+    default=["A:0.1", "B:0.12"],
+    help="Variant in name:rate format. Can be specified multiple times.",
 )
 @click.option(
     "--output",
@@ -35,21 +33,33 @@ def generate_cli():
 )
 def generate_ab_test_data(
     num_events: int,
-    conversion_rate_a: float,
-    conversion_rate_b: float,
+    variants: tuple[str],
     output,
 ):
     """Generate dummy data for an A/B test."""
+    try:
+        variants_dict = {
+            name.strip(): float(rate.strip())
+            for name, rate in (pair.split(":") for pair in variants)
+        }
+    except ValueError:
+        click.echo(
+            "Error: --variant must be in the format 'name:rate'",
+            err=True,
+        )
+        return
+
     events = []
+    variant_names = list(variants_dict.keys())
     for _ in range(num_events):
-        treatment = np.random.choice(["A", "B"])
-        conversion_rate = conversion_rate_a if treatment == "A" else conversion_rate_b
+        variant = np.random.choice(variant_names)
+        conversion_rate = variants_dict[variant]
         conversion = np.random.rand() < conversion_rate
         events.append(
             {
                 "timestamp": datetime.now().isoformat(),
-                "treatment": treatment,
-                "conversion": bool(conversion),
+                "variant": variant,
+                "outcome": int(conversion),
             }
         )
 
@@ -74,11 +84,11 @@ def generate_bernoulli_data(num_events: int, prob: float, output):
     """Generate dummy data for a series of Bernoulli trials."""
     events = []
     for _ in range(num_events):
-        conversion = np.random.rand() < prob
+        outcome = np.random.rand() < prob
         events.append(
             {
                 "timestamp": datetime.now().isoformat(),
-                "conversion": bool(conversion),
+                "outcome": bool(outcome),
             }
         )
 
@@ -138,14 +148,26 @@ def generate_mab_data(num_events: int, arm_probs: str, output):
 @generate_cli.command("poisson-cohorts")
 @click.option("--num-events", "-n", default=1000, help="Number of events to generate.")
 @click.option(
-    "--cohorts",
-    default="campaign-A,campaign-B,organic",
-    help="Comma-separated list of cohort names.",
+    "--rate",
+    "rates_str",
+    multiple=True,
+    default=[
+        "campaign-A:login:1.5",
+        "campaign-A:purchase:0.5",
+        "campaign-B:login:2.0",
+        "campaign-B:purchase:0.8",
+        "organic:login:5.0",
+        "organic:purchase:1.0",
+        "organic:logout:4.0",
+    ],
+    help="Rate in cohort:event_type:rate format. Can be specified multiple times.",
 )
 @click.option(
-    "--event-types",
-    default="login,purchase,logout",
-    help="Comma-separated list of event types.",
+    "--start-date",
+    type=click.DateTime(),
+    default=None,
+    help="The start date for the event data generation (ISO 8601 format). "
+    "Defaults to the number of --days ago.",
 )
 @click.option(
     "--days", default=30, help="Number of days over which to generate events."
@@ -158,39 +180,59 @@ def generate_mab_data(num_events: int, arm_probs: str, output):
     help="Output file path (defaults to stdout).",
 )
 def generate_poisson_data(
-    num_events: int, cohorts: str, event_types: str, days: int, output
+    num_events: int,
+    rates_str: tuple[str],
+    days: int,
+    start_date: datetime | None,
+    output,
 ):
     """Generate dummy data for a Poisson cohort rate problem."""
-    cohort_list = cohorts.split(",")
-    type_list = event_types.split(",")
+    try:
+        parsed_rates = [
+            (c.strip(), e.strip(), float(r.strip()))
+            for c, e, r in (rate.split(":") for rate in rates_str)
+        ]
+    except ValueError:
+        click.echo(
+            "Error: --rate must be in the format 'cohort:event_type:rate'",
+            err=True,
+        )
+        return
 
-    # Assign a random base rate (events per day) to each cohort/type pair
-    rates = np.random.uniform(0.1, 5.0, size=(len(cohort_list), len(type_list)))
+    cohort_list = sorted(list(set(c for c, _, _ in parsed_rates)))
+    type_list = sorted(list(set(e for _, e, _ in parsed_rates)))
+
+    cohort_map = {name: i for i, name in enumerate(cohort_list)}
+    type_map = {name: i for i, name in enumerate(type_list)}
+
+    rates = np.zeros((len(cohort_list), len(type_list)))
+    for cohort, event_type, rate in parsed_rates:
+        rates[cohort_map[cohort], type_map[event_type]] = rate
 
     # Calculate total rate to simulate the master Poisson process
     total_rate = rates.sum()
     avg_interval = (days * 24 * 60 * 60) / num_events
 
+    # Generate all event choices at once using a PyMC model
+    p = rates.flatten() / total_rate
+    with pm.Model():
+        choices = pm.Categorical("choices", p=p, size=num_events)
+        idata = pm.sample_prior_predictive(samples=1)
+
+    event_choices = idata.prior["choices"].values.flatten()
+
     events = []
-    current_time = datetime.now()
-    for _ in range(num_events):
+    if start_date:
+        current_time = start_date
+    else:
+        current_time = datetime.now() - timedelta(days=days)
+    for i in range(num_events):
         # Simulate time between events with an exponential distribution
         time_delta_seconds = np.random.exponential(avg_interval)
         current_time += timedelta(seconds=time_delta_seconds)
 
-        # Decide which cohort/type generated this event
-        # This is like throwing a dart at a board divided by the relative rates
-        rand_val = np.random.uniform(0, total_rate)
-        cumulative_rate = 0
-        cohort_idx, type_idx = -1, -1
-        for i, c in enumerate(cohort_list):
-            for j, et in enumerate(type_list):
-                cumulative_rate += rates[i, j]
-                if rand_val <= cumulative_rate:
-                    cohort_idx, type_idx = i, j
-                    break
-            if cohort_idx != -1:
-                break
+        # Assign the pre-drawn event choice
+        cohort_idx, type_idx = np.unravel_index(event_choices[i], rates.shape)
 
         events.append(
             {

@@ -10,6 +10,8 @@ dependencies = [
   "jinja2",
   "httpx",
   "numpy",
+  "scipy>=1.16.2",
+  "pymc>=5.25.1",
 ]
 description = "A vibes CLI for pymc-vibes"
 name = "pymc-vibes"

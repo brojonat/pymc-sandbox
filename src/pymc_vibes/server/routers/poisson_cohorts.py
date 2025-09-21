@@ -7,25 +7,23 @@ import ibis
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from pymc_vibes.pymc_models.poisson import fit_poisson_rate
-from pymc_vibes.server.db import get_db_connection
+from pymc_vibes.server.db import get_db_connection_from_env
 
-router = APIRouter(
-    prefix="/poisson-cohorts/{experiment_name}", tags=["poisson-cohorts"]
-)
+router = APIRouter(prefix="/poisson-cohorts", tags=["poisson-cohorts"])
 
 
 # -------------------------
 # Routes
 # -------------------------
-@router.get("/fit")
-async def fit_model(
-    experiment_name: str,
+@router.get("/posterior")
+async def get_posterior(
+    experiment_name: str = Query(...),
     start: datetime = Query(...),
     end: datetime = Query(...),
     cohort: Optional[list[str]] = Query(default=None),
     event: Optional[list[str]] = Query(default=None),
     model: str = Query(default="poisson"),
-    conn: ibis.BaseBackend = Depends(get_db_connection),
+    conn: ibis.BaseBackend = Depends(get_db_connection_from_env),
 ) -> dict[str, Any]:
     """Fit a Poisson rate model for a given experiment and time range."""
     if model != "poisson":
@@ -72,14 +70,14 @@ async def fit_model(
 
 @router.get("/list")
 async def list_events(
-    experiment_name: str,
+    experiment_name: str = Query(...),
     cohort: Optional[str] = Query(default=None),
     event: Optional[str] = Query(default=None),
     start: Optional[datetime] = Query(default=None),
     end: Optional[datetime] = Query(default=None),
     limit: int = Query(default=1000, ge=1, le=100000),
     offset: int = Query(default=0, ge=0),
-    conn: ibis.BaseBackend = Depends(get_db_connection),
+    conn: ibis.BaseBackend = Depends(get_db_connection_from_env),
 ) -> dict[str, Any]:
     """List events for a given Poisson cohorts experiment."""
     metadata_table = conn.table("_vibes_experiments_metadata")
@@ -123,12 +121,12 @@ async def list_events(
 
 @router.delete("/delete")
 async def delete_endpoint(
-    experiment_name: str,
+    experiment_name: str = Query(...),
     cohort: Optional[str] = Query(default=None),
     event: Optional[str] = Query(default=None),
     start: Optional[datetime] = Query(default=None),
     end: Optional[datetime] = Query(default=None),
-    conn: ibis.BaseBackend = Depends(get_db_connection),
+    conn: ibis.BaseBackend = Depends(get_db_connection_from_env),
 ) -> dict[str, Any]:
     """Delete events from a given Poisson cohorts experiment based on filters."""
     if all(v is None for v in (cohort, event, start, end)):

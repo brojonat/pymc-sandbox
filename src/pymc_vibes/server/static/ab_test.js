@@ -1,9 +1,10 @@
 // Import necessary libraries from a CDN
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
+import { apiClient } from "/static/client.js";
+
 const posteriorContainer = document.getElementById("chart-container");
 const trialsContainer = document.getElementById("trials-container");
-const useDummyData = true;
 
 // --- KDE Helper Functions ---
 function kernelDensityEstimator(kernel, X) {
@@ -23,51 +24,6 @@ function kernelEpanechnikov(k) {
   return function (v) {
     return Math.abs((v /= k)) <= 1 ? (0.75 * (1 - v * v)) / k : 0;
   };
-}
-
-/**
- * Generates dummy posterior data for multiple variants in an A/B test.
- */
-function generateDummyData() {
-  const variants = [
-    { name: "A (Control)", trueP: 0.1, numTrials: 250 },
-    { name: "B (Treatment 1)", trueP: 0.12, numTrials: 250 },
-    { name: "C (Treatment 2)", trueP: 0.15, numTrials: 250 },
-  ];
-  const posteriors = {};
-  const trials = {};
-
-  variants.forEach((variant) => {
-    // 1. Generate raw trial data
-    const variantTrials = [];
-    for (let i = 0; i < variant.numTrials; i++) {
-      variantTrials.push(Math.random() < variant.trueP ? 1 : 0);
-    }
-    trials[variant.name] = variantTrials;
-
-    // 2. Generate a plausible posterior from the raw data
-    const successes = d3.sum(variantTrials);
-    const failures = variant.numTrials - successes;
-    const posteriorMean = (successes + 1) / (variant.numTrials + 2);
-    const posteriorStdDev = Math.sqrt(
-      ((successes + 1) * (failures + 1)) /
-        ((variant.numTrials + 2) ** 2 * (variant.numTrials + 3))
-    );
-
-    const numSamples = 500;
-    const rates = [];
-    for (let k = 0; k < numSamples / 2; k++) {
-      const u1 = Math.random();
-      const u2 = Math.random();
-      const z1 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
-      const z2 = Math.sqrt(-2.0 * Math.log(u1)) * Math.sin(2.0 * Math.PI * u2);
-      rates.push(z1 * posteriorStdDev + posteriorMean);
-      rates.push(z2 * posteriorStdDev + posteriorMean);
-    }
-    posteriors[variant.name] = rates.filter((r) => r > 0 && r < 1);
-  });
-
-  return { trials, posteriors };
 }
 
 function renderSingleTrialStrip(container, variantName, trials) {
@@ -124,10 +80,11 @@ function renderSingleTrialStrip(container, variantName, trials) {
 
 function renderAllTrials(container, trialsData) {
   container.innerHTML = "";
-  for (const [variantName, trials] of Object.entries(trialsData)) {
+  for (const [variantName, variantRows] of trialsData.entries()) {
     const variantContainer = document.createElement("div");
     container.appendChild(variantContainer);
-    renderSingleTrialStrip(variantContainer, variantName, trials);
+    const outcomes = variantRows.map((d) => d.outcome);
+    renderSingleTrialStrip(variantContainer, variantName, outcomes);
   }
 }
 
@@ -242,13 +199,37 @@ function renderPosteriors(container, data) {
 }
 
 async function main() {
-  if (useDummyData) {
-    const data = generateDummyData();
-    renderPosteriors(posteriorContainer, data.posteriors);
-    renderAllTrials(trialsContainer, data.trials);
+  const experimentName = posteriorContainer.dataset.experimentName;
+  if (!experimentName) {
+    trialsContainer.innerText = "Could not find experiment name.";
+    posteriorContainer.innerText = "";
     return;
   }
-  // TODO: Fetch data from the backend API
+
+  // Show loading messages
+  trialsContainer.innerHTML = "<p>Loading trial data...</p>";
+  posteriorContainer.innerHTML = "<p>Fitting model...</p>";
+
+  // Fetch trial data first
+  try {
+    const data = await apiClient.getExperimentData(experimentName, {
+      limit: 10000,
+    });
+    const trials = d3.group(data.rows, (d) => d.variant);
+    renderAllTrials(trialsContainer, trials);
+  } catch (e) {
+    console.error(e);
+    trialsContainer.innerText = `Error loading data: ${e.message}`;
+  }
+
+  // Then fetch posterior data asynchronously
+  try {
+    const posteriorData = await apiClient.getABTestPosterior(experimentName);
+    renderPosteriors(posteriorContainer, posteriorData.posterior_samples);
+  } catch (e) {
+    console.error(e);
+    posteriorContainer.innerText = `Error loading posterior: ${e.message}`;
+  }
 }
 
 main();

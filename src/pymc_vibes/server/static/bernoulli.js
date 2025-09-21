@@ -1,9 +1,10 @@
 // Import necessary libraries from a CDN
 import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
+import { apiClient } from "/static/client.js";
+
 const posteriorContainer = document.getElementById("chart-container");
 const trialsContainer = document.getElementById("trials-container");
-const useDummyData = true;
 
 // --- KDE Helper Functions ---
 // (Based on https://d3-graph-gallery.com/graph/density_basic.html)
@@ -24,48 +25,6 @@ function kernelEpanechnikov(k) {
   return function (v) {
     return Math.abs((v /= k)) <= 1 ? (0.75 * (1 - v * v)) / k : 0;
   };
-}
-
-/**
- * Generates dummy posterior data for a Bernoulli trial.
- * In a real scenario, this would be samples from a Beta distribution.
- * Here, we simulate it with a clipped Normal distribution for simplicity.
- */
-function generateDummyData() {
-  const trueP = 0.65;
-  const numTrials = 150;
-
-  // 1. Generate raw trial data
-  const trials = [];
-  for (let i = 0; i < numTrials; i++) {
-    trials.push(Math.random() < trueP ? 1 : 0);
-  }
-
-  // 2. Generate a plausible posterior from the raw data
-  // For a Beta distribution, Posterior ~ Beta(alpha + successes, beta + failures)
-  // We'll simulate this with a Normal approximation
-  const successes = d3.sum(trials);
-  const failures = numTrials - successes;
-  const posteriorMean = (successes + 1) / (numTrials + 2); // Using Bayes estimator
-  const posteriorStdDev = Math.sqrt(
-    ((successes + 1) * (failures + 1)) /
-      ((numTrials + 2) ** 2 * (numTrials + 3))
-  );
-
-  const numSamples = 500;
-  const rates = [];
-  for (let k = 0; k < numSamples / 2; k++) {
-    const u1 = Math.random();
-    const u2 = Math.random();
-    const z1 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
-    const z2 = Math.sqrt(-2.0 * Math.log(u1)) * Math.sin(2.0 * Math.PI * u2);
-    rates.push(z1 * posteriorStdDev + posteriorMean);
-    rates.push(z2 * posteriorStdDev + posteriorMean);
-  }
-
-  // Filter to a plausible range [0, 1] for a probability
-  const posterior = rates.filter((r) => r > 0 && r < 1);
-  return { trials, posterior };
 }
 
 function renderTrials(container, trials) {
@@ -193,14 +152,36 @@ function renderPosterior(container, data) {
     .text("Posterior Distribution for Bernoulli 'p'");
 }
 
+async function loadAndRenderPosterior(experimentName) {
+  posteriorContainer.innerHTML = "<p>Fitting model...</p>";
+  try {
+    const posteriorData = await apiClient.getPosterior(experimentName);
+    const posterior = posteriorData.posterior_samples;
+    renderPosterior(posteriorContainer, posterior);
+  } catch (e) {
+    console.error(e);
+    posteriorContainer.innerText = `Error loading posterior: ${e.message}`;
+  }
+}
+
 async function main() {
-  if (useDummyData) {
-    const data = generateDummyData();
-    renderTrials(trialsContainer, data.trials);
-    renderPosterior(posteriorContainer, data.posterior);
+  const experimentName = posteriorContainer.dataset.experimentName;
+  if (!experimentName) {
+    trialsContainer.innerText = "Could not find experiment name.";
     return;
   }
-  // TODO: Fetch data from the backend API
+
+  try {
+    const data = await apiClient.getExperimentData(experimentName, {
+      limit: 10000,
+    });
+    const trials = data.rows.map((d) => d.outcome);
+    renderTrials(trialsContainer, trials);
+    loadAndRenderPosterior(experimentName);
+  } catch (e) {
+    console.error(e);
+    trialsContainer.innerText = `Error loading data: ${e.message}`;
+  }
 }
 
 main();

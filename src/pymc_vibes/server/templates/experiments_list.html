@@ -22,7 +22,7 @@ experiment for URL building (e.g., 'ab-test', 'bernoulli'). #}
       to adjust property names (e.g., experiment.name) #} {# based on your
       actual data model. #}
       <td>
-        <a href="/{{ experiment_type }}/{{ experiment.id }}"
+        <a href="/{{ experiment_type }}?experiment_name={{ experiment.name }}"
           >{{ experiment.name }}</a
         >
       </td>

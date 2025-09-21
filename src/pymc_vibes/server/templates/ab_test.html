@@ -1,7 +1,6 @@
 {% extends "detail_base.html" %} {% block title %}pymc-vibes: A/B Test{%
-endblock %} {% block page_title %}A/B Test{% endblock %} {% block chart_content
-%}
-<div id="chart-container"></div>
+endblock %} {% block chart_content %}
+<div id="chart-container" data-experiment-name="{{ experiment.name }}"></div>
 <hr />
 <div id="trials-container"></div>
 {% endblock %} {% block javascript_module %}/static/ab_test.js{% endblock %}

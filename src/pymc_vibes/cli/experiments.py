@@ -1,16 +1,19 @@
 """CLI commands for managing experiments."""
 
 import json
+from datetime import datetime
+from typing import Optional
 
 import click
 import httpx
 
+from pymc_vibes.cli.cli_types import Timestamp
 from pymc_vibes.cli.client import APIClient
 
 
 @click.group("experiments")
 def experiments_cli():
-    """Create, read, update, delete, and list experiments."""
+    """Create, list, and delete experiments."""
     pass
 
 
@@ -22,18 +25,26 @@ def list_experiments():
         response = client.list_experiments()
         click.echo(json.dumps(response.json(), indent=2))
     except httpx.HTTPStatusError as e:
-        error_details = e.response.json()
-        click.echo(json.dumps(error_details, indent=2), err=True)
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
     except httpx.RequestError as e:
         error_message = {"error": "Failed to connect to API", "details": str(e)}
         click.echo(json.dumps(error_message, indent=2), err=True)
 
 
 @experiments_cli.command("create")
-@click.argument("experiment_name")
 @click.option(
-    "--display-name", required=True, help="A user-friendly name for the experiment."
+    "--experiment-name", required=True, help="A unique name for the experiment."
 )
+@click.option("--display-name", help="A user-friendly name for the experiment.")
 @click.option(
     "--type",
     "experiment_type",
@@ -44,7 +55,12 @@ def list_experiments():
     ),
     help="The type of the experiment.",
 )
-@click.argument("initial_data_file", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--initial-data-file",
+    default="-",
+    type=click.File("r"),
+    help="Path to the initial JSON data file. Defaults to stdin.",
+)
 def create_experiment(
     experiment_name: str,
     display_name: str,
@@ -52,6 +68,8 @@ def create_experiment(
     initial_data_file: str,
 ):
     """Create a new experiment from an initial data file."""
+    if not display_name:
+        display_name = experiment_name
     client = APIClient()
     try:
         response = client.create_experiment(
@@ -59,18 +77,73 @@ def create_experiment(
         )
         click.echo(json.dumps(response.json(), indent=2))
     except httpx.HTTPStatusError as e:
-        error_details = e.response.json()
-        click.echo(json.dumps(error_details, indent=2), err=True)
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
     except httpx.RequestError as e:
         error_message = {"error": "Failed to connect to API", "details": str(e)}
         click.echo(json.dumps(error_message, indent=2), err=True)
-    except FileNotFoundError:
-        error_message = {"error": "File not found", "details": initial_data_file}
+
+
+@experiments_cli.command("inspect")
+@click.option(
+    "--experiment-name", required=True, help="The name of the experiment to inspect."
+)
+@click.option(
+    "--start",
+    type=Timestamp(),
+    help="Start timestamp (Unix, YYYY-MM-DDTHH:MM:SS, YYYY-MM-DD, or YYYYMMDD).",
+)
+@click.option(
+    "--end",
+    type=Timestamp(),
+    help="End timestamp (Unix, YYYY-MM-DDTHH:MM:SS, YYYY-MM-DD, or YYYYMMDD).",
+)
+@click.option("--limit", type=int, default=100, help="Number of rows to return.")
+@click.option("--offset", type=int, default=0, help="Number of rows to skip.")
+def inspect_experiment(
+    experiment_name: str,
+    start: Optional[datetime],
+    end: Optional[datetime],
+    limit: int,
+    offset: int,
+):
+    """Inspect the data for a single experiment."""
+    client = APIClient()
+    try:
+        start_iso = start.isoformat() if start else None
+        end_iso = end.isoformat() if end else None
+        response = client.inspect_experiment(
+            experiment_name, start_iso, end_iso, limit, offset
+        )
+        click.echo(json.dumps(response.json(), indent=2))
+    except httpx.HTTPStatusError as e:
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
+    except httpx.RequestError as e:
+        error_message = {"error": "Failed to connect to API", "details": str(e)}
         click.echo(json.dumps(error_message, indent=2), err=True)
 
 
 @experiments_cli.command("delete")
-@click.argument("experiment_name")
+@click.option(
+    "--experiment-name", required=True, help="The name of the experiment to delete."
+)
 def delete_experiment(experiment_name: str):
     """Delete an experiment and its associated data."""
     client = APIClient()
@@ -80,10 +153,16 @@ def delete_experiment(experiment_name: str):
         response = client.list_experiments()
         click.echo(json.dumps(response.json(), indent=2))
     except httpx.HTTPStatusError as e:
-        # If the delete failed, it might be because the experiment was already gone (404)
-        # Or it could be another server error.
-        error_details = e.response.json()
-        click.echo(json.dumps(error_details, indent=2), err=True)
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
     except httpx.RequestError as e:
         error_message = {"error": "Failed to connect to API", "details": str(e)}
         click.echo(json.dumps(error_message, indent=2), err=True)

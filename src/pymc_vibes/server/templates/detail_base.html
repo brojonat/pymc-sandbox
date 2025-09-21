@@ -1,5 +1,14 @@
 {% extends "base.html" %} {% block head_css %}
 <style>
+  #experiment-header {
+    margin-bottom: 2rem;
+  }
+  #experiment-header h1 {
+    margin-bottom: 0.5rem;
+  }
+  #experiment-header p {
+    color: #666;
+  }
   #chart-wrapper {
     max-width: {% block chart_wrapper_width %}800px{% endblock %};
     margin: auto;
@@ -7,7 +16,16 @@
   {% block extra_css %}{% endblock %}
 </style>
 {% endblock %} {% block content %}
-<h1>{% block page_title %}{% endblock %}</h1>
+<div id="experiment-header">
+  <h1>{{ experiment.display_name }} <small>({{ experiment.name }})</small></h1>
+  <p>
+    <strong>Type:</strong> {{ experiment.type }} | <strong>Status:</strong> {{
+    experiment.status }} | <strong>Created:</strong>
+    {{ experiment.created_at.strftime('%Y-%m-%d %H:%M') }}
+  </p>
+</div>
+<hr />
+
 <div id="chart-wrapper">{% block chart_content %}{% endblock %}</div>
 {% block extra_content %}{% endblock %} {% endblock %} {% block scripts %}
 <script

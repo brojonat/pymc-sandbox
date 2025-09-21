@@ -6,6 +6,7 @@ from pymc_vibes.cli.db import db_cli
 from pymc_vibes.cli.events import events_cli
 from pymc_vibes.cli.experiments import experiments_cli
 from pymc_vibes.cli.generate import generate_cli
+from pymc_vibes.cli.migrations import migrations_cli
 
 CONTEXT_SETTINGS = {"help_option_names": ["-h", "--help"]}
 
@@ -16,10 +17,11 @@ def cli():
     pass
 
 
-cli.add_command(experiments_cli)
-cli.add_command(events_cli)
-cli.add_command(generate_cli)
 cli.add_command(db_cli)
+cli.add_command(events_cli)
+cli.add_command(experiments_cli)
+cli.add_command(generate_cli)
+cli.add_command(migrations_cli)
 
 
 def main():

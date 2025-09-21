@@ -1,7 +1,8 @@
-"""A simple client for interacting with the pymc-vibes API."""
+"""CLI API client for interacting with the pymc-vibes server."""
 
+import json
 import os
-from typing import Any, Dict, List
+from typing import IO, Any, Dict, List, Optional
 
 import httpx
 
@@ -18,7 +19,7 @@ class APIClient:
 
     def list_experiments(self) -> httpx.Response:
         """Lists all experiments from the API."""
-        response = self.client.get("/experiments/")
+        response = self.client.get("/experiments")
         response.raise_for_status()
         return response
 
@@ -27,44 +28,55 @@ class APIClient:
         experiment_name: str,
         experiment_type: str,
         display_name: str,
-        data_filepath: str,
+        data_file: IO,
     ) -> httpx.Response:
         """Creates a new experiment by uploading an initial data file."""
-        with open(data_filepath, "rb") as f:
-            files = {
-                "initial_data": (
-                    os.path.basename(data_filepath),
-                    f,
-                    "application/json",
-                )
-            }
-            data = {
-                "experiment_name": experiment_name,
-                "experiment_type": experiment_type,
-                "display_name": display_name,
-            }
-            response = self.client.post("/experiments/", files=files, data=data)
+        initial_data = json.load(data_file)
+
+        payload = {
+            "experiment_name": experiment_name,
+            "experiment_type": experiment_type,
+            "display_name": display_name,
+            "initial_data": initial_data,
+        }
+        response = self.client.post("/experiments", json=payload)
+        response.raise_for_status()
+        return response
+
+    def inspect_experiment(
+        self,
+        experiment_name: str,
+        start: Optional[str] = None,
+        end: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> httpx.Response:
+        """Inspects data for a single experiment."""
+        url = "/experiments/data"
+        params = {"experiment_name": experiment_name, "limit": limit, "offset": offset}
+        if start:
+            params["start"] = start
+        if end:
+            params["end"] = end
+
+        response = self.client.get(url, params=params)
         response.raise_for_status()
         return response
 
     def delete_experiment(self, experiment_name: str) -> httpx.Response:
         """Deletes an experiment via the API."""
-        url = f"/experiments/{experiment_name}"
-        response = self.client.delete(url)
+        url = "/experiments"
+        params = {"experiment_name": experiment_name}
+        response = self.client.delete(url, params=params)
         response.raise_for_status()
         return response
 
     def upload_events(
         self, experiment_name: str, events: List[Dict[str, Any]]
     ) -> httpx.Response:
-        """
-        Uploads a batch of events to a specific experiment.
-
-        :param experiment_name: The name of the experiment (table).
-        :param events: A list of event dictionaries to upload.
-        :return: The response from the API.
-        """
-        url = f"/events/{experiment_name}"
-        response = self.client.post(url, json=events)
-        response.raise_for_status()  # Raise an exception for 4xx/5xx responses
+        """Uploads a batch of events to a specific experiment."""
+        url = "/events"
+        params = {"experiment_name": experiment_name}
+        response = self.client.post(url, params=params, json=events)
+        response.raise_for_status()
         return response

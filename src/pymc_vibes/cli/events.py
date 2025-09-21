@@ -1,7 +1,6 @@
 """CLI commands for managing events."""
 
 import json
-import sys
 
 import click
 import httpx
@@ -17,15 +16,19 @@ def events_cli():
 
 @events_cli.command("upload")
 @click.option(
-    "--experiment-id", required=True, help="The ID of the experiment to upload data to."
+    "--experiment-name",
+    required=True,
+    help="The unique identifier for the experiment.",
 )
-@click.argument("event_data", type=click.File("r"), default=sys.stdin)
-def upload_events(experiment_id: str, event_data):
-    """
-    Upload a batch of events from a file or stdin to an experiment.
-
-    EVENT_DATA should be a JSON array of event objects.
-    """
+@click.option(
+    "--file",
+    "event_data",
+    type=click.File("r"),
+    default="-",
+    help="Path to a JSON file containing the events (defaults to stdin).",
+)
+def upload_events(experiment_name: str, event_data):
+    """Upload a batch of events to a specific experiment."""
     try:
         data = json.load(event_data)
         if not isinstance(data, list):
@@ -37,7 +40,7 @@ def upload_events(experiment_id: str, event_data):
 
     client = APIClient()
     try:
-        response = client.upload_events(experiment_id, data)
+        response = client.upload_events(experiment_name, data)
         click.echo(json.dumps(response.json(), indent=2))
     except httpx.HTTPStatusError as e:
         # Handle HTTP errors (e.g., 404 Not Found, 400 Bad Request)
