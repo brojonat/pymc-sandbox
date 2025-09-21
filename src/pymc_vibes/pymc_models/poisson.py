@@ -50,7 +50,9 @@ def fit_poisson_rate(
     elif unit == "second":
         duration_in_unit = duration_seconds
     else:
-        raise ValueError("Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'.")
+        raise ValueError(
+            "Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'."
+        )
 
     with pm.Model() as model:
         # Prior for the per-vehicle rate (lambda)
@@ -110,7 +112,9 @@ def _sample_poisson_interval(
         )
 
         if n_events_sample > 0:
-            pm.Uniform("timestamps", lower=start_unix, upper=end_unix, size=n_events_sample)
+            pm.Uniform(
+                "timestamps", lower=start_unix, upper=end_unix, size=n_events_sample
+            )
             second_seed = random_seed + 1 if random_seed is not None else None
             prior_pred = pm.sample_prior_predictive(samples=1, random_seed=second_seed)
             return prior_pred.prior["timestamps"].values.flatten().tolist()
@@ -163,7 +167,9 @@ def generate_poisson_events(
     elif unit == "second":
         rate_per_second = total_rate
     else:
-        raise ValueError("Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'.")
+        raise ValueError(
+            "Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'."
+        )
 
     # For the homogeneous case, we call the sampler once over the whole interval
     return _sample_poisson_interval(

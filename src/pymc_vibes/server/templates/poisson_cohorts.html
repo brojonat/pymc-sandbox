@@ -1,15 +1,26 @@
-{% extends "detail_base.html" %} {% block title %}pymc-vibes: Poisson Cohorts{%
-endblock %} {% block chart_wrapper_width %}1400px{% endblock %} {% block
-extra_css %} #time-slider { /* Reset browser-default styling that can cause
-mis-alignment. box-sizing ensures padding/border are included in the element's
-total width/height. */ box-sizing: border-box; padding: 0; margin: 0; } {%
-endblock %} {% block chart_content %}
-<div
-  id="global-posterior-container"
-  data-experiment-name="{{ experiment.name }}"
-></div>
-<div id="chart-container"></div>
-{% endblock %} {% block extra_content %}
-<pre id="event-details"></pre>
-{% endblock %} {% block javascript_module %}/static/poisson_cohorts.js{%
-endblock %}
+{% extends "base.html" %} {% block title %}pymc-vibes: Poisson Cohorts{%
+endblock %} {% block content %}
+<div class="chart-controls">
+  <span>Group By:</span>
+  <input
+    type="checkbox"
+    id="group-by-cohort"
+    value="cohort"
+    class="group-by-checkbox"
+    checked
+  />
+  <label for="group-by-cohort">Cohort</label>
+  <input
+    type="checkbox"
+    id="group-by-event-type"
+    value="event_type"
+    class="group-by-checkbox"
+  />
+  <label for="group-by-event-type">Event Type</label>
+</div>
+<div id="chart-container" data-experiment-name="{{ experiment.name }}"></div>
+<div id="global-timeline-container"></div>
+<div id="timelines-container"></div>
+{% endblock %} {% block scripts %}
+<script type="module" src="/static/poisson_cohorts.js"></script>
+{% endblock %}

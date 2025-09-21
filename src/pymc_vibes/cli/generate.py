@@ -1,12 +1,15 @@
 """CLI commands for generating dummy data."""
 
 import json
+import random
 import sys
+import time
 from datetime import datetime, timedelta
 
 import click
 import numpy as np
-import pymc as pm
+
+from pymc_vibes.pymc_models.poisson import generate_poisson_events
 
 
 @click.group("generate")
@@ -146,7 +149,6 @@ def generate_mab_data(num_events: int, arm_probs: str, output):
 
 
 @generate_cli.command("poisson-cohorts")
-@click.option("--num-events", "-n", default=1000, help="Number of events to generate.")
 @click.option(
     "--rate",
     "rates_str",
@@ -160,7 +162,8 @@ def generate_mab_data(num_events: int, arm_probs: str, output):
         "organic:purchase:1.0",
         "organic:logout:4.0",
     ],
-    help="Rate in cohort:event_type:rate format. Can be specified multiple times.",
+    help="Rate in 'cohort:event_type:rate' format, where rate is in events/day. "
+    "Can be specified multiple times.",
 )
 @click.option(
     "--start-date",
@@ -180,7 +183,6 @@ def generate_mab_data(num_events: int, arm_probs: str, output):
     help="Output file path (defaults to stdout).",
 )
 def generate_poisson_data(
-    num_events: int,
     rates_str: tuple[str],
     days: int,
     start_date: datetime | None,
@@ -199,51 +201,38 @@ def generate_poisson_data(
         )
         return
 
-    cohort_list = sorted(list(set(c for c, _, _ in parsed_rates)))
-    type_list = sorted(list(set(e for _, e, _ in parsed_rates)))
-
-    cohort_map = {name: i for i, name in enumerate(cohort_list)}
-    type_map = {name: i for i, name in enumerate(type_list)}
-
-    rates = np.zeros((len(cohort_list), len(type_list)))
-    for cohort, event_type, rate in parsed_rates:
-        rates[cohort_map[cohort], type_map[event_type]] = rate
-
-    # Calculate total rate to simulate the master Poisson process
-    total_rate = rates.sum()
-    avg_interval = (days * 24 * 60 * 60) / num_events
-
-    # Generate all event choices at once using a PyMC model
-    p = rates.flatten() / total_rate
-    with pm.Model():
-        choices = pm.Categorical("choices", p=p, size=num_events)
-        idata = pm.sample_prior_predictive(samples=1)
-
-    event_choices = idata.prior["choices"].values.flatten()
-
-    events = []
     if start_date:
-        current_time = start_date
+        ts_start = start_date
     else:
-        current_time = datetime.now() - timedelta(days=days)
-    for i in range(num_events):
-        # Simulate time between events with an exponential distribution
-        time_delta_seconds = np.random.exponential(avg_interval)
-        current_time += timedelta(seconds=time_delta_seconds)
+        ts_start = datetime.now() - timedelta(days=days)
+    ts_end = ts_start + timedelta(days=days)
 
-        # Assign the pre-drawn event choice
-        cohort_idx, type_idx = np.unravel_index(event_choices[i], rates.shape)
+    all_events = []
 
-        events.append(
-            {
-                "timestamp": current_time.isoformat(),
-                "cohort": cohort_list[cohort_idx],
-                "event_type": type_list[type_idx],
-            }
+    for cohort, event_type, rate in parsed_rates:
+        # The rate is in events/day, which matches the default unit for the generator
+        timestamps = generate_poisson_events(
+            ts_start=ts_start,
+            ts_end=ts_end,
+            rate=rate,
+            unit="day",
+            random_seed=int(time.time()),
         )
+        for ts in timestamps:
+            all_events.append(
+                {
+                    "timestamp": datetime.fromtimestamp(ts).isoformat(),
+                    "cohort": cohort,
+                    "event_type": event_type,
+                }
+            )
 
-    json.dump(events, output, indent=2)
+    # Shuffle the events to mix the different streams together
+    random.shuffle(all_events)
+    total_events = len(all_events)
+
+    json.dump(all_events, output, indent=2)
     if output is not sys.stdout:
         click.echo(
-            f"Successfully generated {num_events} events to {output.name}", err=True
+            f"Successfully generated {total_events} events to {output.name}", err=True
         )

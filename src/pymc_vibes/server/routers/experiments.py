@@ -1,7 +1,7 @@
 """Router for managing experiments in DuckLake."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import ibis
 import pyarrow as pa
@@ -13,11 +13,45 @@ from pymc_vibes.db import get_db_connection_from_env
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 
 
+# --- Schemas ---
+# Define a mapping from experiment type to its Arrow schema. This ensures
+# that data is created with the correct types, especially for timestamps.
+EXPERIMENT_SCHEMAS = {
+    "poisson-cohorts": pa.schema(
+        [
+            pa.field("timestamp", pa.timestamp("us")),
+            pa.field("cohort", pa.string()),
+            pa.field("event_type", pa.string()),
+        ]
+    ),
+    "ab-test": pa.schema(
+        [
+            pa.field("timestamp", pa.timestamp("us")),
+            pa.field("variant", pa.string()),
+            pa.field("outcome", pa.int64()),
+        ]
+    ),
+    "bernoulli": pa.schema(
+        [
+            pa.field("timestamp", pa.timestamp("us")),
+            pa.field("outcome", pa.bool_()),
+        ]
+    ),
+    "multi-armed-bandits": pa.schema(
+        [
+            pa.field("timestamp", pa.timestamp("us")),
+            pa.field("arm", pa.int64()),
+            pa.field("reward", pa.int64()),
+        ]
+    ),
+}
+
+
 class ExperimentCreateRequest(BaseModel):
     experiment_name: str
     experiment_type: str
     display_name: str
-    initial_data: list[dict[str, Any]]
+    initial_data: List[dict[str, Any]]
 
 
 @router.get("")
@@ -51,6 +85,11 @@ async def create_experiment(payload: ExperimentCreateRequest):
         if not payload.initial_data:
             raise ValueError("initial_data must contain a non-empty array of objects.")
         arrow_table = pa.Table.from_pylist(payload.initial_data)
+
+        # Get the schema for the experiment type, if one is defined
+        schema = EXPERIMENT_SCHEMAS.get(payload.experiment_type)
+        if schema:
+            arrow_table = arrow_table.cast(target_schema=schema)
 
         # Use a transaction to ensure both table and metadata are created
         con.con.execute("BEGIN TRANSACTION;")

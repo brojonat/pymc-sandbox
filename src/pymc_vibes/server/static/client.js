@@ -15,37 +15,49 @@ class ApiClient {
     return response.json();
   }
 
+  _buildQuery(params) {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (Array.isArray(value)) {
+        value.forEach((v) => query.append(key, v));
+      } else if (value !== undefined && value !== null) {
+        query.append(key, value);
+      }
+    }
+    return query.toString();
+  }
+
   getExperimentData(experimentName, params = {}) {
-    const query = new URLSearchParams({
-      experiment_name: experimentName,
-      ...params,
-    });
+    const allParams = { experiment_name: experimentName, ...params };
+    const query = this._buildQuery(allParams);
     return this._request(`/experiments/data?${query}`);
   }
 
   getPosterior(experimentName, params = {}) {
-    const query = new URLSearchParams({
-      ...params,
-      experiment_name: experimentName,
-    });
+    const allParams = { experiment_name: experimentName, ...params };
+    const query = this._buildQuery(allParams);
     return this._request(`/bernoulli/posterior?${query}`);
   }
 
   getABTestPosterior(experimentName, params = {}) {
-    const query = new URLSearchParams({
-      ...params,
-      experiment_name: experimentName,
-    });
+    const allParams = { experiment_name: experimentName, ...params };
+    const query = this._buildQuery(allParams);
     return this._request(`/ab-test/posterior?${query}`);
   }
 
+  getPoissonCohortsPosterior(experimentName, params = {}) {
+    const allParams = { experiment_name: experimentName, ...params };
+    const query = this._buildQuery(allParams);
+    return this._request(`/poisson-cohorts/posterior?${query}`);
+  }
+
   deleteExperiment(experimentName) {
-    const query = new URLSearchParams({ experiment_name: experimentName });
+    const query = this._buildQuery({ experiment_name: experimentName });
     return this._request(`/experiments?${query}`, { method: "DELETE" });
   }
 
   recordEvent(experimentName, eventData) {
-    const query = new URLSearchParams({ experiment_name: experimentName });
+    const query = this._buildQuery({ experiment_name: experimentName });
     return this._request(`/events?${query}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

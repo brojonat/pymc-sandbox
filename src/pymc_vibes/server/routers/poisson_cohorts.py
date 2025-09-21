@@ -1,7 +1,7 @@
 """poisson_cohorts.py"""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import ibis
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,8 +20,9 @@ async def get_posterior(
     experiment_name: str = Query(...),
     start: datetime = Query(...),
     end: datetime = Query(...),
-    cohort: Optional[list[str]] = Query(default=None),
-    event: Optional[list[str]] = Query(default=None),
+    cohort: Optional[List[str]] = Query(default=None),
+    event_type: Optional[List[str]] = Query(default=None),
+    group_by: List[str] = Query(default=["cohort"]),
     model: str = Query(default="poisson"),
     conn: ibis.BaseBackend = Depends(get_db_connection_from_env),
 ) -> dict[str, Any]:
@@ -42,11 +43,11 @@ async def get_posterior(
 
     table = conn.table(experiment_name)
 
-    filters = [table.ts >= start, table.ts < end]
+    filters = [table.timestamp >= start, table.timestamp < end]
     if cohort:
         filters.append(table.cohort.isin(cohort))
-    if event:
-        filters.append(table.event.isin(event))
+    if event_type:
+        filters.append(table.event_type.isin(event_type))
 
     combined_filter = filters[0]
     for f in filters[1:]:
@@ -57,11 +58,26 @@ async def get_posterior(
     if results_df.empty:
         return {"results": {}}
 
+    valid_cols = ["cohort", "event_type"]
+    if not all(col in valid_cols for col in group_by):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid group_by columns. Must be a subset of {valid_cols}",
+        )
+
     results: dict[str, Any] = {}
-    for cohort_name, cohort_df in results_df.groupby("cohort"):
-        event_timestamps = cohort_df["ts"]
+    for group_key, group_df in results_df.groupby(group_by):
+        event_timestamps = group_df["timestamp"]
         idata = fit_poisson_rate(event_timestamps, ts_start=start, ts_end=end)
-        results[cohort_name] = {
+
+        # Ensure the group key is a string for the JSON response
+        key_str = (
+            ":".join(map(str, group_key))
+            if isinstance(group_key, tuple)
+            else str(group_key)
+        )
+
+        results[key_str] = {
             "posterior_rate": idata.posterior["rate"].values.flatten().tolist()
         }
 
@@ -71,8 +87,8 @@ async def get_posterior(
 @router.get("/list")
 async def list_events(
     experiment_name: str = Query(...),
-    cohort: Optional[str] = Query(default=None),
-    event: Optional[str] = Query(default=None),
+    cohort: Optional[List[str]] = Query(default=None),
+    event_type: Optional[List[str]] = Query(default=None),
     start: Optional[datetime] = Query(default=None),
     end: Optional[datetime] = Query(default=None),
     limit: int = Query(default=1000, ge=1, le=100000),
@@ -95,13 +111,13 @@ async def list_events(
 
     filters = []
     if cohort:
-        filters.append(table.cohort == cohort)
-    if event:
-        filters.append(table.event == event)
+        filters.append(table.cohort.isin(cohort))
+    if event_type:
+        filters.append(table.event_type.isin(event_type))
     if start:
-        filters.append(table.ts >= start)
+        filters.append(table.timestamp >= start)
     if end:
-        filters.append(table.ts < end)
+        filters.append(table.timestamp < end)
 
     if filters:
         combined_filter = filters[0]
@@ -109,7 +125,7 @@ async def list_events(
             combined_filter &= f
         table = table.filter(combined_filter)
 
-    query = table.order_by("ts").limit(limit, offset=offset)
+    query = table.order_by("timestamp").limit(limit, offset=offset)
     results_df = query.execute()
 
     return {
@@ -153,9 +169,9 @@ async def delete_endpoint(
     if event:
         filters.append(table.event == event)
     if start:
-        filters.append(table.ts >= start)
+        filters.append(table.timestamp >= start)
     if end:
-        filters.append(table.ts < end)
+        filters.append(table.timestamp < end)
 
     combined_filter = filters[0]
     for f in filters[1:]:
@@ -175,10 +191,10 @@ async def delete_endpoint(
         conditions_sql.append("event = ?")
         params.append(event)
     if start:
-        conditions_sql.append("ts >= ?")
+        conditions_sql.append("timestamp >= ?")
         params.append(start)
     if end:
-        conditions_sql.append("ts < ?")
+        conditions_sql.append("timestamp < ?")
         params.append(end)
 
     if conditions_sql:

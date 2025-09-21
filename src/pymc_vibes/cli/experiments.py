@@ -166,3 +166,60 @@ def delete_experiment(experiment_name: str):
     except httpx.RequestError as e:
         error_message = {"error": "Failed to connect to API", "details": str(e)}
         click.echo(json.dumps(error_message, indent=2), err=True)
+
+
+@experiments_cli.command("delete-by-type")
+@click.option(
+    "--type",
+    "experiment_type",
+    required=True,
+    type=click.Choice(
+        ["ab-test", "bernoulli", "multi-armed-bandits", "poisson-cohorts"],
+        case_sensitive=False,
+    ),
+    help="The type of the experiments to delete.",
+)
+def delete_experiments_by_type(experiment_type: str):
+    """Delete all experiments of a specific type."""
+    client = APIClient()
+    try:
+        # 1. Fetch all experiments
+        response = client.list_experiments()
+        all_experiments = response.json().get("experiments", [])
+
+        # 2. Filter for the target type
+        to_delete = [
+            exp for exp in all_experiments if exp.get("type") == experiment_type
+        ]
+
+        if not to_delete:
+            click.echo(f"No experiments of type '{experiment_type}' found.", err=True)
+            return
+
+        # 3. Delete each one
+        click.echo(
+            f"Found {len(to_delete)} experiments of type '{experiment_type}' to delete:",
+            err=True,
+        )
+        for exp in to_delete:
+            exp_name = exp.get("name")
+            if exp_name:
+                click.echo(f" - Deleting {exp_name}...", err=True)
+                client.delete_experiment(exp_name)
+
+        click.echo("Deletion complete.", err=True)
+
+    except httpx.HTTPStatusError as e:
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
+    except httpx.RequestError as e:
+        error_message = {"error": "Failed to connect to API", "details": str(e)}
+        click.echo(json.dumps(error_message, indent=2), err=True)
