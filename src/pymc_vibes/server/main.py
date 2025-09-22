@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import warnings
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict
@@ -13,6 +14,7 @@ from jose import JWTError, jwt
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from pymc_vibes.server.db import verify_db_initialized
+from pymc_vibes.server.mlflow import init_mlflow_client
 from pymc_vibes.server.routers import (
     ab_test,
     bernoulli,
@@ -21,6 +23,15 @@ from pymc_vibes.server.routers import (
     multi_armed_bandits,
     poisson_cohorts,
     ui,
+)
+
+# Suppress the Numba FNV hashing warning, which is not relevant to our use case.
+# This must be done before any pymc/numba imports happen.
+warnings.filterwarnings(
+    "ignore",
+    message=".*FNV hashing is not implemented in Numba.*",
+    category=UserWarning,
+    module="numba.cpython.hashing",
 )
 
 
@@ -93,6 +104,7 @@ def require_claims(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("service.startup")
+    init_mlflow_client()
     verify_db_initialized()
     try:
         yield

@@ -6,9 +6,11 @@ from typing import Any, List, Optional
 import ibis
 import pyarrow as pa
 from fastapi import APIRouter, Depends, HTTPException, Query
+from mlflow.tracking import MlflowClient
 from pydantic import BaseModel
 
 from pymc_vibes.db import get_db_connection_from_env
+from pymc_vibes.server.mlflow import get_mlflow_client
 
 router = APIRouter(prefix="/experiments", tags=["experiments"])
 
@@ -64,6 +66,101 @@ async def list_experiments():
     # Ibis/DuckDB may not return timestamps in a JSON-serializable format
     results["created_at"] = results["created_at"].dt.strftime("%Y-%m-%dT%H:%M:%S.%f")
     return {"experiments": results.to_dict("records")}
+
+
+@router.get("/list-cache")
+async def list_cache(
+    experiment_name: str = Query(...),
+    mlflow_client: MlflowClient = Depends(get_mlflow_client),
+):
+    """
+    List all cached runs from MLflow for a given experiment.
+    """
+    try:
+        # For Poisson cohorts, cached runs are stored in experiments named
+        # `{experiment_name}_{group_key}`. We need to find all of them.
+        all_experiments = mlflow_client.search_experiments()
+        target_experiments = [
+            exp for exp in all_experiments if exp.name.startswith(experiment_name)
+        ]
+
+        if not target_experiments:
+            # If no experiments match the prefix, maybe it's a simple experiment name
+            experiment = mlflow_client.get_experiment_by_name(experiment_name)
+            if not experiment:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No MLflow experiment found for '{experiment_name}'.",
+                )
+            target_experiments = [experiment]
+
+    except Exception:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No MLflow experiment found for '{experiment_name}'.",
+        )
+
+    cached_runs = []
+    for experiment in target_experiments:
+        runs = mlflow_client.search_runs(experiment_ids=[experiment.experiment_id])
+        for run in runs:
+            cached_runs.append(
+                {
+                    "run_id": run.info.run_id,
+                    "experiment_name": experiment.name,
+                    "start_time": run.info.start_time,
+                    "data_hash": run.data.tags.get("data_hash"),
+                    "artifact_uri": run.info.artifact_uri,
+                }
+            )
+
+    return {"cached_runs": cached_runs}
+
+
+@router.post("/clear-cache")
+async def clear_cache(
+    experiment_name: str = Query(...),
+    mlflow_client: MlflowClient = Depends(get_mlflow_client),
+):
+    """
+    Clear the MLflow cache for a given experiment by deleting all of its
+    associated runs.
+    """
+    try:
+        # For Poisson cohorts, cached runs are stored in experiments named
+        # `{experiment_name}_{group_key}`. We need to find all of them.
+        all_experiments = mlflow_client.search_experiments()
+        target_experiments = [
+            exp for exp in all_experiments if exp.name.startswith(experiment_name)
+        ]
+
+        if not target_experiments:
+            # If no experiments match the prefix, maybe it's a simple experiment name
+            experiment = mlflow_client.get_experiment_by_name(experiment_name)
+            if not experiment:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No MLflow experiment found for '{experiment_name}'.",
+                )
+            target_experiments = [experiment]
+
+    except Exception:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No MLflow experiment found for '{experiment_name}'.",
+        )
+
+    deleted_runs_count = 0
+    for experiment in target_experiments:
+        runs = mlflow_client.search_runs(experiment_ids=[experiment.experiment_id])
+        for run in runs:
+            mlflow_client.delete_run(run.info.run_id)
+            deleted_runs_count += 1
+
+    return {
+        "message": f"Successfully cleared cache for experiment '{experiment_name}'.",
+        "deleted_runs_count": deleted_runs_count,
+    }
 
 
 @router.post("")

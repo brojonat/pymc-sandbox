@@ -5,9 +5,12 @@ from typing import Any, List, Optional
 
 import ibis
 from fastapi import APIRouter, Depends, HTTPException, Query
+from mlflow.tracking import MlflowClient
 
 from pymc_vibes.pymc_models.poisson import fit_poisson_rate
 from pymc_vibes.server.db import get_db_connection_from_env
+from pymc_vibes.server.mlflow import get_mlflow_client
+from pymc_vibes.server.mlflow_cache import get_or_create_idata
 
 router = APIRouter(prefix="/poisson-cohorts", tags=["poisson-cohorts"])
 
@@ -25,6 +28,7 @@ async def get_posterior(
     group_by: List[str] = Query(default=["cohort"]),
     model: str = Query(default="poisson"),
     conn: ibis.BaseBackend = Depends(get_db_connection_from_env),
+    mlflow_client: MlflowClient = Depends(get_mlflow_client),
 ) -> dict[str, Any]:
     """Fit a Poisson rate model for a given experiment and time range."""
     if model != "poisson":
@@ -68,13 +72,23 @@ async def get_posterior(
     results: dict[str, Any] = {}
     for group_key, group_df in results_df.groupby(group_by):
         event_timestamps = group_df["timestamp"]
-        idata = fit_poisson_rate(event_timestamps, ts_start=start, ts_end=end)
 
-        # Ensure the group key is a string for the JSON response
+        # Ensure the group key is a string for the experiment name
         key_str = (
             ":".join(map(str, group_key))
             if isinstance(group_key, tuple)
             else str(group_key)
+        )
+        # Create a unique experiment name for this specific data slice
+        group_experiment_name = f"{experiment_name}_{key_str}"
+
+        idata = get_or_create_idata(
+            experiment_name=group_experiment_name,
+            data=event_timestamps,
+            model_fit_function=lambda ts: fit_poisson_rate(
+                ts, ts_start=start, ts_end=end
+            ),
+            mlflow_client=mlflow_client,
         )
 
         results[key_str] = {

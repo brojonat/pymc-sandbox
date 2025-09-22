@@ -6,8 +6,6 @@ The data layer is built on a modern lakehouse architecture using DuckDB and the 
 
 The project provides a framework for several common statistical use cases, including: modeling simple success/failure outcomes with **Bernoulli trials**, comparing conversion rates in **A/B tests**, solving exploration/exploitation problems with **Multi-Armed Bandits**, and estimating event rates over time for different groups with **Poisson Cohorts**. The goal is to provide a practical, hands-on example of how modern data tools can be combined with powerful libraries like PyMC to solve real-world problems.
 
-TODO: currently we just have the data layer implemented, we still need to implement the Bayesian inference endpoints which will give us posteriors for each experiment type which we'll then send to the client for visualization. The way this will (probably) work is that we fit the data for an experiment and output the posterior distributions to a
-
 ## Getting Started
 
 ### Prerequisites
@@ -53,6 +51,34 @@ You can verify the test table was created:
 ```bash
 vibes db list-tables
 ```
+
+### MLflow Integration for Caching
+
+`pymc-vibes` uses [MLflow](https://mlflow.org/) to cache the results of computationally expensive Bayesian model fitting. When a request is made to a posterior endpoint (e.g., for an A/B test), the server first checks if the exact same request has been processed before by looking for a matching run in MLflow.
+
+- If a cached result is found, it is returned immediately, saving significant time.
+- If no cached result is found, the PyMC model is fitted, and the resulting `InferenceData` object is stored as an artifact in a new MLflow run for future use.
+
+This caching mechanism is enabled by default and is transparent to the user.
+
+The server has an endpoint that enables users to clear the cache for a given experiment.
+
+#### MLflow Configuration
+
+To function correctly, the server needs to connect to an MLflow backend store (for tracking metadata) and an artifact store (for storing model results). `pymc-vibes` is configured to use the same RDBMS (e.g., Postgres) and object store (e.g., MinIO) services that power the DuckLake data layer.
+
+NOTE: you will need to create necessary database (e.g., `mlflow`) and bucket (e.g., `mlflow`); that is left as an exercise to the reader.
+
+You must set the following environment variables for the MLflow integration to work:
+
+- `MLFLOW_TRACKING_URI`: The PostgreSQL connection string for the MLflow backend store.
+- `MLFLOW_S3_BUCKET_NAME`: The name of the bucket in MinIO to use for the artifact store (e.g., `mlflow`).
+- `MLFLOW_S3_ENDPOINT_URL`: The URL for the MinIO server (for the MLflow server).
+- `AWS_ACCESS_KEY_ID`: The access key for MinIO (e.g., `minioadmin`).
+- `AWS_SECRET_ACCESS_KEY`: The secret key for MinIO (e.g., `minioadmin`).
+- `AWS_ENDPOINT_URL`: The URL for the MinIO server (for the S3 client, `boto3`).
+
+When running locally with the provided `docker-compose.yml`, these variables will typically be set to `http://localhost:9000` for the endpoint URLs.
 
 ## Running the Server
 

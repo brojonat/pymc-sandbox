@@ -15,3 +15,5 @@ wheels/
 src/pymc_vibes/data/sample_data.json
 *.db
 *.ducklake
+
+mlruns

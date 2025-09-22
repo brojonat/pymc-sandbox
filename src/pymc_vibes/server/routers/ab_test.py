@@ -2,9 +2,12 @@
 
 import ibis
 from fastapi import APIRouter, Depends, HTTPException, Query
+from mlflow.tracking import MlflowClient
 
 from pymc_vibes.pymc_models.ab_test import fit_ab_model
 from pymc_vibes.server.db import get_db_connection_from_env
+from pymc_vibes.server.mlflow import get_mlflow_client
+from pymc_vibes.server.mlflow_cache import get_or_create_idata
 
 router = APIRouter(prefix="/ab-test", tags=["a/b test"])
 
@@ -13,6 +16,7 @@ router = APIRouter(prefix="/ab-test", tags=["a/b test"])
 async def get_posterior(
     experiment_name: str = Query(...),
     conn: ibis.BaseBackend = Depends(get_db_connection_from_env),
+    mlflow_client: MlflowClient = Depends(get_mlflow_client),
 ):
     """Returns posterior samples for an A/B test experiment."""
     # 1. Check if experiment exists
@@ -39,8 +43,13 @@ async def get_posterior(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve data: {e}")
 
-    # 4. Fit PyMC model
-    idata = fit_ab_model(data)
+    # 4. Fit PyMC model or get from cache
+    idata = get_or_create_idata(
+        experiment_name=experiment_name,
+        data=data,
+        model_fit_function=fit_ab_model,
+        mlflow_client=mlflow_client,
+    )
 
     # 5. Format posterior samples for the frontend
     posterior_samples = {}
