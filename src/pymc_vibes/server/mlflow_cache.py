@@ -118,5 +118,4 @@ def get_or_create_idata(
             # Ensure the run is always terminated, even on success.
             if mlflow_client.get_run(run_id).info.lifecycle_stage == "active":
                 mlflow_client.set_terminated(run_id, "FINISHED")
-
     return idata

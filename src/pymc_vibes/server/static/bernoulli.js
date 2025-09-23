@@ -6,27 +6,6 @@ import { apiClient } from "/static/client.js";
 const posteriorContainer = document.getElementById("chart-container");
 const trialsContainer = document.getElementById("trials-container");
 
-// --- KDE Helper Functions ---
-// (Based on https://d3-graph-gallery.com/graph/density_basic.html)
-function kernelDensityEstimator(kernel, X) {
-  return function (V) {
-    return X.map(function (x) {
-      return [
-        x,
-        d3.mean(V, function (v) {
-          return kernel(x - v);
-        }),
-      ];
-    });
-  };
-}
-
-function kernelEpanechnikov(k) {
-  return function (v) {
-    return Math.abs((v /= k)) <= 1 ? (0.75 * (1 - v * v)) / k : 0;
-  };
-}
-
 function renderTrials(container, trials) {
   // 1. Clear container and setup dimensions
   container.innerHTML = "";
@@ -81,9 +60,17 @@ function renderTrials(container, trials) {
 }
 
 function renderPosterior(container, data) {
+  // The data object now contains `stats` and `curve` properties.
+  const { stats, curve } = data;
+  const statsData = stats.data[0];
+  const mean = statsData[stats.columns.indexOf("mean")];
+  const median = statsData[stats.columns.indexOf("median")];
+  const hdi_lower = statsData[stats.columns.indexOf("hdi_3%")];
+  const hdi_upper = statsData[stats.columns.indexOf("hdi_97%")];
+
   // 1. Clear container and setup dimensions
   container.innerHTML = "";
-  const margin = { top: 40, right: 30, bottom: 50, left: 50 };
+  const margin = { top: 60, right: 30, bottom: 50, left: 50 };
   const width = container.clientWidth - margin.left - margin.right;
   const height = 400 - margin.top - margin.bottom;
 
@@ -96,40 +83,30 @@ function renderPosterior(container, data) {
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  // 3. Define scales
-  const xScale = d3.scaleLinear().domain([0, 1]).range([0, width]);
-
-  // 4. Compute KDE
-  const stdDev = d3.deviation(data);
-  const bandwidth = (1.06 * stdDev) / Math.pow(data.length, 0.2);
-  const kde = kernelDensityEstimator(
-    kernelEpanechnikov(bandwidth),
-    xScale.ticks(100)
-  );
-  const density = kde(data);
-
+  // 3. Define scales using the pre-computed curve data
+  const xScale = d3.scaleLinear().domain(d3.extent(curve.x)).range([0, width]);
   const yScale = d3
     .scaleLinear()
-    .domain([0, d3.max(density, (d) => d[1]) * 1.1])
+    .domain([0, d3.max(curve.y) * 1.1])
     .range([height, 0]);
 
-  // 5. Draw the density line
+  // 4. Create the density line from pre-computed data
   const line = d3
     .line()
-    .x((d) => xScale(d[0]))
-    .y((d) => yScale(d[1]))
+    .x((d, i) => xScale(curve.x[i]))
+    .y((d) => yScale(d))
     .curve(d3.curveBasis);
 
   svg
     .append("path")
-    .datum(density)
+    .datum(curve.y)
     .attr("fill", "#69b3a2")
     .attr("fill-opacity", 0.4)
     .attr("stroke", "#000")
     .attr("stroke-width", 1.5)
-    .attr("d", `M0,${height} ` + line(density) + ` L${width},${height}`);
+    .attr("d", `M0,${height} ` + line(curve.y) + ` L${width},${height}`);
 
-  // 6. Draw X axis and label
+  // 5. Draw X axis and label
   svg
     .append("g")
     .attr("transform", `translate(0,${height})`)
@@ -141,7 +118,7 @@ function renderPosterior(container, data) {
     .attr("y", height + margin.bottom - 10)
     .text("Probability (p)");
 
-  // 7. Draw Title
+  // 6. Draw Title and Subtitle with Summary Stats
   svg
     .append("text")
     .attr("x", width / 2)
@@ -150,14 +127,26 @@ function renderPosterior(container, data) {
     .style("font-size", "16px")
     .style("font-weight", "bold")
     .text("Posterior Distribution for Bernoulli 'p'");
+
+  const statsText =
+    `Mean: ${mean.toFixed(3)} | ` +
+    `Median: ${median.toFixed(3)} | ` +
+    `94% HDI: [${hdi_lower.toFixed(3)}, ${hdi_upper.toFixed(3)}]`;
+
+  svg
+    .append("text")
+    .attr("x", width / 2)
+    .attr("y", 20 - margin.top / 2)
+    .attr("text-anchor", "middle")
+    .style("font-size", "12px")
+    .text(statsText);
 }
 
 async function loadAndRenderPosterior(experimentName) {
   posteriorContainer.innerHTML = "<p>Fitting model...</p>";
   try {
     const posteriorData = await apiClient.getPosterior(experimentName);
-    const posterior = posteriorData.posterior_samples;
-    renderPosterior(posteriorContainer, posterior);
+    renderPosterior(posteriorContainer, posteriorData);
   } catch (e) {
     console.error(e);
     posteriorContainer.innerText = `Error loading posterior: ${e.message}`;

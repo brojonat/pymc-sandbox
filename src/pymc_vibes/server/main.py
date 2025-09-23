@@ -1,3 +1,6 @@
+# ruff: noqa: E402
+"""main.py"""
+
 import logging
 import os
 import sys
@@ -5,6 +8,15 @@ import warnings
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict
+
+# Suppress the Numba FNV hashing warning, which is not relevant to our use case.
+# This must be done before any pymc/numba imports happen.
+warnings.filterwarnings(
+    "ignore",
+    message=".*FNV hashing is not implemented in Numba.*",
+    category=UserWarning,
+    module="numba.cpython.hashing",
+)
 
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -23,15 +35,6 @@ from pymc_vibes.server.routers import (
     multi_armed_bandits,
     poisson_cohorts,
     ui,
-)
-
-# Suppress the Numba FNV hashing warning, which is not relevant to our use case.
-# This must be done before any pymc/numba imports happen.
-warnings.filterwarnings(
-    "ignore",
-    message=".*FNV hashing is not implemented in Numba.*",
-    category=UserWarning,
-    module="numba.cpython.hashing",
 )
 
 

@@ -209,14 +209,26 @@ function renderAllTimelines(container, cohortEvents, timeDomain) {
   }
 }
 
-function renderPosteriors(container, data) {
-  // 1. Clear container and setup dimensions
-  container.innerHTML = "";
-  const margin = { top: 40, right: 30, bottom: 50, left: 50 };
-  const width = container.clientWidth - margin.left - margin.right;
-  const height = 400 - margin.top - margin.bottom;
+function renderSinglePosterior(
+  container,
+  title,
+  summaryData,
+  xDomain,
+  yDomain,
+  chartHeight,
+  color = "#69b3a2"
+) {
+  const { stats, curve } = summaryData;
+  const statsData = stats.data[0];
+  const mean = statsData[stats.columns.indexOf("mean")];
+  const median = statsData[stats.columns.indexOf("median")];
+  const hdi_lower = statsData[stats.columns.indexOf("hdi_3%")];
+  const hdi_upper = statsData[stats.columns.indexOf("hdi_97%")];
 
-  // 2. Create SVG
+  const margin = { top: 60, right: 30, bottom: 50, left: 50 };
+  const width = container.clientWidth - margin.left - margin.right;
+  const height = chartHeight - margin.top - margin.bottom;
+
   const svg = d3
     .select(container)
     .append("svg")
@@ -225,62 +237,28 @@ function renderPosteriors(container, data) {
     .append("g")
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  // 3. Define scales
-  const allSamples = Object.values(data)
-    .map((d) => d.posterior_rate)
-    .flat();
-  const xDomain = d3.extent(allSamples);
   const xScale = d3.scaleLinear().domain(xDomain).range([0, width]);
-  const color = d3.scaleOrdinal(d3.schemeCategory10);
+  const yScale = d3.scaleLinear().domain(yDomain).range([height, 0]);
 
-  // 4. Compute KDE for each variant
-  const allDensities = [];
-  let maxDensity = 0;
-
-  for (const [name, samples] of Object.entries(data)) {
-    const rates = samples.posterior_rate;
-    const stdDev = d3.deviation(rates);
-    const bandwidth = (1.06 * (stdDev || 1e-9)) / Math.pow(rates.length, 0.2);
-    const kde = kernelDensityEstimator(
-      kernelEpanechnikov(bandwidth),
-      xScale.ticks(100)
-    );
-    const density = kde(rates);
-    allDensities.push({ name, density });
-    const currentMax = d3.max(density, (d) => d[1]);
-    if (currentMax > maxDensity) {
-      maxDensity = currentMax;
-    }
-  }
-
-  const yScale = d3
-    .scaleLinear()
-    .domain([0, maxDensity * 1.1])
-    .range([height, 0]);
-
-  // 5. Draw the density lines
   const line = d3
     .line()
-    .x((d) => xScale(d[0]))
-    .y((d) => yScale(d[1]))
+    .x((d, i) => xScale(curve.x[i]))
+    .y((d) => yScale(d))
     .curve(d3.curveBasis);
 
-  allDensities.forEach(({ name, density }) => {
-    svg
-      .append("path")
-      .datum(density)
-      .attr("fill", "none")
-      .attr("stroke", color(name))
-      .attr("stroke-width", 2)
-      .attr("stroke-linejoin", "round")
-      .attr("d", line);
-  });
+  svg
+    .append("path")
+    .datum(curve.y)
+    .attr("fill", color)
+    .attr("fill-opacity", 0.4)
+    .attr("stroke", "#000")
+    .attr("stroke-width", 1.5)
+    .attr("d", `M0,${height} ` + line(curve.y) + ` L${width},${height}`);
 
-  // 6. Draw X axis and label
   svg
     .append("g")
     .attr("transform", `translate(0,${height})`)
-    .call(d3.axisBottom(xScale));
+    .call(d3.axisBottom(xScale).ticks(5));
   svg
     .append("text")
     .attr("text-anchor", "middle")
@@ -288,7 +266,6 @@ function renderPosteriors(container, data) {
     .attr("y", height + margin.bottom - 10)
     .text("λ [events/day]");
 
-  // 7. Draw Title & Legend
   svg
     .append("text")
     .attr("x", width / 2)
@@ -296,11 +273,127 @@ function renderPosteriors(container, data) {
     .attr("text-anchor", "middle")
     .style("font-size", "16px")
     .style("font-weight", "bold")
-    .text("Posterior Distributions for Cohort Event Rates");
+    .text(title);
 
-  const legend = svg
+  const statsText =
+    `Mean: ${mean.toFixed(3)} | ` +
+    `Median: ${median.toFixed(3)} | ` +
+    `94% HDI: [${hdi_lower.toFixed(3)}, ${hdi_upper.toFixed(3)}]`;
+
+  svg
+    .append("text")
+    .attr("x", width / 2)
+    .attr("y", 20 - margin.top / 2)
+    .attr("text-anchor", "middle")
+    .style("font-size", "12px")
+    .text(statsText);
+}
+
+function renderPosteriors(container, data) {
+  // data is a dictionary of { groupName: PosteriorSummary }
+  container.innerHTML = "";
+
+  // --- 1. Calculate Global Domains & Sort Groups ---
+  const groupNames = Object.keys(data).sort();
+  if (groupNames.length === 0) {
+    container.innerHTML = "<p>No posterior data to display.</p>";
+    return;
+  }
+  const allGroups = groupNames.map((name) => data[name]);
+  const allX = allGroups.flatMap((v) => v.curve.x);
+  const allY = allGroups.flatMap((v) => v.curve.y);
+  const globalXDomain = d3.extent(allX);
+  const globalYDomain = [0, d3.max(allY) * 1.1];
+  const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+  // --- 2. Create Layout Containers ---
+  const mainFlexContainer = document.createElement("div");
+  mainFlexContainer.style.display = "flex";
+  mainFlexContainer.style.alignItems = "flex-start";
+  mainFlexContainer.style.gap = "20px";
+
+  const leftColumnContainer = document.createElement("div");
+  leftColumnContainer.style.flex = "1";
+  leftColumnContainer.style.display = "flex";
+  leftColumnContainer.style.flexDirection = "column";
+  leftColumnContainer.style.gap = "10px";
+
+  const rightColumnContainer = document.createElement("div");
+  rightColumnContainer.style.flex = "2";
+
+  mainFlexContainer.appendChild(leftColumnContainer);
+  mainFlexContainer.appendChild(rightColumnContainer);
+  container.appendChild(mainFlexContainer);
+
+  // --- 3. Render Combined Plot (Right Column) ---
+  const combinedPlotHeight = 500;
+  const margin = { top: 60, right: 30, bottom: 50, left: 50 };
+  const combinedWidth =
+    rightColumnContainer.clientWidth - margin.left - margin.right;
+  const combinedHeight = combinedPlotHeight - margin.top - margin.bottom;
+
+  const combinedSvg = d3
+    .select(rightColumnContainer)
+    .append("svg")
+    .attr("width", combinedWidth + margin.left + margin.right)
+    .attr("height", combinedPlotHeight)
+    .append("g")
+    .attr("transform", `translate(${margin.left},${margin.top})`);
+
+  const xScale = d3
+    .scaleLinear()
+    .domain(globalXDomain)
+    .range([0, combinedWidth]);
+  const yScale = d3
+    .scaleLinear()
+    .domain(globalYDomain)
+    .range([combinedHeight, 0]);
+
+  const line = d3
+    .line()
+    .x((d, i) => xScale(d.x[i]))
+    .y((d) => yScale(d.y));
+
+  // Draw lines for each group
+  for (const name of groupNames) {
+    const summary = data[name];
+    const lineData = summary.curve.y.map((y, i) => ({
+      x: summary.curve.x,
+      y: y,
+    }));
+    combinedSvg
+      .append("path")
+      .datum(lineData)
+      .attr("fill", "none")
+      .attr("stroke", color(name))
+      .attr("stroke-width", 2.5)
+      .attr("d", line);
+  }
+
+  // Add Axes and Title for combined plot
+  combinedSvg
+    .append("g")
+    .attr("transform", `translate(0,${combinedHeight})`)
+    .call(d3.axisBottom(xScale));
+  combinedSvg
+    .append("text")
+    .attr("text-anchor", "middle")
+    .attr("x", combinedWidth / 2)
+    .attr("y", combinedHeight + margin.bottom - 10)
+    .text("λ [events/day]");
+  combinedSvg
+    .append("text")
+    .attr("x", combinedWidth / 2)
+    .attr("y", 0 - margin.top / 2)
+    .attr("text-anchor", "middle")
+    .style("font-size", "16px")
+    .style("font-weight", "bold")
+    .text("Combined Posterior Distributions");
+
+  // Add Legend for combined plot
+  const legend = combinedSvg
     .selectAll(".legend")
-    .data(Object.keys(data))
+    .data(groupNames)
     .enter()
     .append("g")
     .attr("class", "legend")
@@ -308,18 +401,37 @@ function renderPosteriors(container, data) {
 
   legend
     .append("rect")
-    .attr("x", width - 18)
+    .attr("x", combinedWidth - 18)
     .attr("width", 18)
     .attr("height", 18)
     .style("fill", color);
 
   legend
     .append("text")
-    .attr("x", width - 24)
+    .attr("x", combinedWidth - 24)
     .attr("y", 9)
     .attr("dy", ".35em")
     .style("text-anchor", "end")
     .text((d) => d);
+
+  // --- 4. Render Individual Plots (Left Column) ---
+  const individualPlotHeight = combinedPlotHeight / groupNames.length;
+
+  for (const name of groupNames) {
+    const summary = data[name];
+    const groupContainer = document.createElement("div");
+    leftColumnContainer.appendChild(groupContainer);
+
+    renderSinglePosterior(
+      groupContainer,
+      `Posterior for ${name}`,
+      summary,
+      globalXDomain,
+      globalYDomain,
+      individualPlotHeight,
+      color(name)
+    );
+  }
 }
 
 async function fetchAndRender() {
@@ -395,7 +507,7 @@ async function fetchAndRender() {
         group_by: groupBy,
       }
     );
-    renderPosteriors(posteriorContainer, posteriorData.results);
+    renderPosteriors(posteriorContainer, posteriorData);
   } catch (e) {
     console.error(e);
     posteriorContainer.innerText = `Error loading posterior: ${e.message}`;

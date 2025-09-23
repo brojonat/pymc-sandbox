@@ -1,5 +1,7 @@
 # pymc-vibes
 
+TODO: forward more interesting data from the InferenceData object to the frontend.
+
 `pymc-vibes` is a demonstration project for managing and visualizing data from various statistical experiments, such as A/B tests, Bernoulli trials, and more. It features a FastAPI backend, a web UI for visualizations, and a powerful command-line interface for programmatic control.
 
 The data layer is built on a modern lakehouse architecture using DuckDB and the DuckLake format, with Ibis providing a clean, dataframe-style API.
@@ -17,26 +19,26 @@ The project provides a framework for several common statistical use cases, inclu
 
 1.  **Clone the repository:**
 
-    ```bash
-    git clone https://github.com/pymc-labs/pymc-vibes.git
-    cd pymc-vibes
-    ```
+```bash
+git clone https://github.com/pymc-labs/pymc-vibes.git
+cd pymc-vibes
+```
 
 2.  **Set up the local environment:**
 
-    This project includes a Docker Compose file to spin up a local Postgres database and a MinIO S3-compatible object store.
+This project includes a Docker Compose file to spin up a local Postgres database and a MinIO S3-compatible object store.
 
-    ```bash
-    docker-compose up -d
-    ```
+```bash
+docker-compose up -d
+```
 
-    You will also need to create a bucket in MinIO for DuckLake to use. You can do this through the MinIO console at [http://localhost:9090](http://localhost:9090). Use `minioadmin` for both the username and password. Create a bucket named `ducklake`.
+You will also need to create a bucket in MinIO for DuckLake to use. You can do this through the MinIO console at [http://localhost:9090](http://localhost:9090). Use `minioadmin` for both the username and password. Create a bucket named `ducklake`.
 
 3.  **Install dependencies:**
 
-    ```bash
-    uv pip install -e .
-    ```
+```bash
+uv pip install -e .
+```
 
 4.  **Initialize the Database:**
 

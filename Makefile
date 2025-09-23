@@ -25,7 +25,7 @@ run-mlflow-ui: ## Run the MLflow UI server
 	@echo "Default Artifact Root: s3://$(MLFLOW_S3_BUCKET_NAME)/"
 	@echo "S3 Endpoint URL (for client): $(AWS_ENDPOINT_URL)"
 	@echo "---------------------------------------------------------"
-	mlflow ui \
+	uv run mlflow ui \
 		--backend-store-uri $(MLFLOW_TRACKING_URI) \
 		--default-artifact-root s3://$(MLFLOW_S3_BUCKET_NAME)/ \
 		--host 127.0.0.1 \

@@ -3,11 +3,15 @@
 from datetime import datetime
 from typing import Any, List, Optional
 
+import arviz as az
 import ibis
+import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, Query
 from mlflow.tracking import MlflowClient
+from scipy import stats
 
 from pymc_vibes.pymc_models.poisson import fit_poisson_rate
+from pymc_vibes.schemas import PosteriorCurve, PosteriorSummary
 from pymc_vibes.server.db import get_db_connection_from_env
 from pymc_vibes.server.mlflow import get_mlflow_client
 from pymc_vibes.server.mlflow_cache import get_or_create_idata
@@ -15,11 +19,32 @@ from pymc_vibes.server.mlflow_cache import get_or_create_idata
 router = APIRouter(prefix="/poisson-cohorts", tags=["poisson-cohorts"])
 
 
+def _calculate_posterior_summary(idata, var_name) -> PosteriorSummary:
+    """Helper function to calculate posterior summary statistics and KDE."""
+    posterior_samples = idata.posterior[var_name].values.flatten()
+    kde = stats.gaussian_kde(posterior_samples)
+    x = np.linspace(posterior_samples.min(), posterior_samples.max(), 200)
+    y = kde(x)
+
+    summary = az.summary(
+        idata,
+        var_names=[var_name],
+        hdi_prob=0.94,
+        stat_funcs={"median": np.median},
+        extend=True,
+    )
+
+    return PosteriorSummary(
+        stats=summary.to_dict(orient="split"),
+        curve=PosteriorCurve(x=x.tolist(), y=y.tolist()),
+    )
+
+
 # -------------------------
 # Routes
 # -------------------------
-@router.get("/posterior")
-async def get_posterior(
+@router.get("/posterior", response_model=dict[str, PosteriorSummary])
+def get_posterior(
     experiment_name: str = Query(...),
     start: datetime = Query(...),
     end: datetime = Query(...),
@@ -60,7 +85,7 @@ async def get_posterior(
 
     results_df = table.execute()
     if results_df.empty:
-        return {"results": {}}
+        return {}
 
     valid_cols = ["cohort", "event_type"]
     if not all(col in valid_cols for col in group_by):
@@ -91,11 +116,9 @@ async def get_posterior(
             mlflow_client=mlflow_client,
         )
 
-        results[key_str] = {
-            "posterior_rate": idata.posterior["rate"].values.flatten().tolist()
-        }
+        results[key_str] = _calculate_posterior_summary(idata, "rate")
 
-    return {"results": results}
+    return results
 
 
 @router.get("/list")
