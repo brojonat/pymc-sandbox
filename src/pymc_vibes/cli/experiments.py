@@ -223,3 +223,51 @@ def delete_experiments_by_type(experiment_type: str):
     except httpx.RequestError as e:
         error_message = {"error": "Failed to connect to API", "details": str(e)}
         click.echo(json.dumps(error_message, indent=2), err=True)
+
+
+@experiments_cli.command("list-cache")
+@click.option("--experiment-name", required=True, help="The name of the experiment.")
+def list_cache(experiment_name: str):
+    """List all cached MLflow runs for an experiment."""
+    client = APIClient()
+    try:
+        response = client.list_cache(experiment_name)
+        click.echo(json.dumps(response.json(), indent=2))
+    except httpx.HTTPStatusError as e:
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
+    except httpx.RequestError as e:
+        error_message = {"error": "Failed to connect to API", "details": str(e)}
+        click.echo(json.dumps(error_message, indent=2), err=True)
+
+
+@experiments_cli.command("clear-cache")
+@click.option("--experiment-name", required=True, help="The name of the experiment.")
+def clear_cache(experiment_name: str):
+    """Clear the MLflow cache for an experiment."""
+    client = APIClient()
+    try:
+        response = client.clear_cache(experiment_name)
+        click.echo(json.dumps(response.json(), indent=2))
+    except httpx.HTTPStatusError as e:
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
+    except httpx.RequestError as e:
+        error_message = {"error": "Failed to connect to API", "details": str(e)}
+        click.echo(json.dumps(error_message, indent=2), err=True)

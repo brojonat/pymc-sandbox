@@ -1,4 +1,16 @@
+# ruff: noqa: E402
 """Main CLI command group."""
+
+import warnings
+
+# Suppress the Numba FNV hashing warning, which is not relevant to our use case.
+# This must be done before any pymc/numba imports happen.
+warnings.filterwarnings(
+    "ignore",
+    message=".*FNV hashing is not implemented in Numba.*",
+    category=UserWarning,
+    module="numba.cpython.hashing",
+)
 
 import click
 

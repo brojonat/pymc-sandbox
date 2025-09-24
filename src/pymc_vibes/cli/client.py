@@ -80,3 +80,19 @@ class APIClient:
         response = self.client.post(url, params=params, json=events)
         response.raise_for_status()
         return response
+
+    def list_cache(self, experiment_name: str) -> httpx.Response:
+        """Lists all cached MLflow runs for an experiment."""
+        url = "/experiments/list-cache"
+        params = {"experiment_name": experiment_name}
+        response = self.client.get(url, params=params)
+        response.raise_for_status()
+        return response
+
+    def clear_cache(self, experiment_name: str) -> httpx.Response:
+        """Clears the MLflow cache for an experiment."""
+        url = "/experiments/clear-cache"
+        params = {"experiment_name": experiment_name}
+        response = self.client.post(url, params=params)
+        response.raise_for_status()
+        return response
