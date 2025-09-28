@@ -42,11 +42,25 @@ EXPERIMENT_SCHEMAS = {
     "multi-armed-bandits": pa.schema(
         [
             pa.field("timestamp", pa.timestamp("us")),
-            pa.field("arm", pa.int64()),
-            pa.field("reward", pa.int64()),
+            pa.field("arm", pa.string()),
+            pa.field("reward", pa.float64()),
+        ]
+    ),
+    "weibull": pa.schema(
+        [
+            pa.field("duration", pa.float64()),
+            pa.field("observed", pa.bool_()),
         ]
     ),
 }
+
+
+def pretty_print_schema(schema: pa.Schema) -> list[dict[str, str]]:
+    """Convert a PyArrow schema to a more readable format."""
+    return [
+        {"name": name, "type": str(type)}
+        for name, type in zip(schema.names, schema.types)
+    ]
 
 
 class ExperimentCreateRequest(BaseModel):
@@ -54,6 +68,28 @@ class ExperimentCreateRequest(BaseModel):
     experiment_type: str
     display_name: str
     initial_data: List[dict[str, Any]]
+
+
+@router.get("/schema")
+async def get_experiment_schema(
+    experiment_type: Optional[str] = Query(default=None, alias="type"),
+):
+    """Return the required schema for a given experiment type."""
+    if not experiment_type:
+        return [
+            {
+                "experiment_type": experiment_type,
+                "schema": pretty_print_schema(schema),
+            }
+            for experiment_type, schema in EXPERIMENT_SCHEMAS.items()
+        ]
+    schema = EXPERIMENT_SCHEMAS.get(experiment_type)
+    if not schema:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Schema not found for experiment type '{experiment_type}'",
+        )
+    return {"experiment_type": experiment_type, "schema": pretty_print_schema(schema)}
 
 
 @router.get("")

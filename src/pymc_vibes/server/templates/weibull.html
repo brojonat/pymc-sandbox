@@ -1,0 +1,72 @@
+{% extends "base.html" %} {% block content %}
+<div id="events-container" class="mb-8"></div>
+<div id="chart-container" data-experiment-name="{{ experiment.name }}"></div>
+<script type="module" src="/static/weibull.js"></script>
+
+<template id="weibull-explanation">
+  <div
+    x-data="{ open: false }"
+    @mouseenter="open = true"
+    @mouseleave="open = false"
+    class="mt-4 text-sm text-gray-600 relative inline-block"
+  >
+    <span>Questions? </span>
+    <span class="text-lg cursor-pointer text-gray-500">&#9432;</span>
+
+    <div
+      x-show="open"
+      x-transition
+      class="absolute top-full left-1/2 -translate-x-1/2 w-[450px] bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-10 text-left"
+      style="display: none"
+    >
+      <p>
+        Each gray curve represents a plausible probability distribution for the
+        <strong>time-to-failure</strong>, drawn from the posterior. The
+        horizontal axis, <strong>Duration</strong>, represents time (e.g.,
+        hours, days, cycles), and the vertical axis represents the probability
+        of a failure occurring at that specific time. The variation among these
+        curves illustrates the uncertainty in our estimates of the
+        <code>α</code> (shape) and <code>β</code> (scale) parameters.
+      </p>
+      <p class="mt-2">
+        The <strong>dashed red line</strong> serves as a reference, showing the
+        distribution for a constant failure rate (an
+        <a
+          href="https://en.wikipedia.org/wiki/Exponential_distribution"
+          target="_blank"
+          class="text-blue-600 hover:underline"
+          >Exponential distribution</a
+        >, which is a special case of the Weibull where α=1). This reference
+        uses the median posterior value for the scale parameter <code>β</code>.
+      </p>
+      <p class="mt-2">
+        This model accounts for <strong>censored data</strong>—cases where a
+        failure has not been observed by the end of the observation period.
+        These data points (shown in orange in the "Raw Event Data" chart)
+        provide crucial information that the time-to-failure is
+        <em>at least</em> as long as the observed duration. The shape parameter,
+        <code>α</code>, tells us about the failure rate over time:
+      </p>
+      <ul class="list-disc list-inside mt-1 ml-4">
+        <li>
+          <code>α > 1</code>: Increasing failure rate (wear-out). Components are
+          more likely to fail as they age.
+        </li>
+        <li>
+          <code>α = 1</code>: Constant failure rate (random failures, as in the
+          Exponential distribution).
+        </li>
+        <li>
+          <code>α < 1</code>: Decreasing failure rate (infant mortality). Early
+          failures are more common.
+        </li>
+      </ul>
+      <p class="mt-1">
+        If you see many traces with peaks later than the red reference line, it
+        suggests the data provides evidence for an <code>α > 1</code>,
+        indicating a wear-out phenomenon.
+      </p>
+    </div>
+  </div>
+</template>
+{% endblock %}

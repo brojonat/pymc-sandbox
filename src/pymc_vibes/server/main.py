@@ -32,9 +32,11 @@ from pymc_vibes.server.routers import (
     bernoulli,
     events,
     experiments,
+    hazard_rate,
     multi_armed_bandits,
     poisson_cohorts,
     ui,
+    weibull,
 )
 
 
@@ -122,6 +124,8 @@ app.include_router(bernoulli.router)
 app.include_router(ab_test.router)
 app.include_router(multi_armed_bandits.router)
 app.include_router(poisson_cohorts.router)
+app.include_router(weibull.router)
+app.include_router(hazard_rate.router)
 app.include_router(ui.router)
 app.include_router(events.router)
 app.include_router(experiments.router)

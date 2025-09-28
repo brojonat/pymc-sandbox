@@ -7,7 +7,7 @@ from typing import Optional
 import click
 import httpx
 
-from pymc_vibes.cli.cli_types import Timestamp
+from pymc_vibes.cli.cli_types import ExperimentType, Timestamp
 from pymc_vibes.cli.client import APIClient
 
 
@@ -15,6 +15,36 @@ from pymc_vibes.cli.client import APIClient
 def experiments_cli():
     """Create, list, and delete experiments."""
     pass
+
+
+@experiments_cli.command("schema")
+@click.option(
+    "--type",
+    "experiment_type",
+    required=False,
+    type=ExperimentType(),
+    help="The type of the experiment.",
+)
+def get_experiment_schema(experiment_type: str):
+    """Get the required data schema for a given experiment type."""
+    client = APIClient()
+    try:
+        response = client.get_experiment_schema(experiment_type)
+        click.echo(json.dumps(response.json(), indent=2))
+    except httpx.HTTPStatusError as e:
+        try:
+            error_details = e.response.json()
+            click.echo(json.dumps(error_details, indent=2), err=True)
+        except json.JSONDecodeError:
+            error_message = {
+                "error": "Failed to decode server error response",
+                "status_code": e.response.status_code,
+                "response_text": e.response.text,
+            }
+            click.echo(json.dumps(error_message, indent=2), err=True)
+    except httpx.RequestError as e:
+        error_message = {"error": "Failed to connect to API", "details": str(e)}
+        click.echo(json.dumps(error_message, indent=2), err=True)
 
 
 @experiments_cli.command("list")
@@ -42,17 +72,14 @@ def list_experiments():
 
 @experiments_cli.command("create")
 @click.option(
-    "--experiment-name", required=True, help="A unique name for the experiment."
+    "--name", "experiment_name", required=True, help="A unique name for the experiment."
 )
 @click.option("--display-name", help="A user-friendly name for the experiment.")
 @click.option(
     "--type",
     "experiment_type",
     required=True,
-    type=click.Choice(
-        ["ab-test", "bernoulli", "multi-armed-bandits", "poisson-cohorts"],
-        case_sensitive=False,
-    ),
+    type=ExperimentType(),
     help="The type of the experiment.",
 )
 @click.option(
@@ -94,7 +121,10 @@ def create_experiment(
 
 @experiments_cli.command("inspect")
 @click.option(
-    "--experiment-name", required=True, help="The name of the experiment to inspect."
+    "--name",
+    "experiment_name",
+    required=True,
+    help="The name of the experiment to inspect.",
 )
 @click.option(
     "--start",
@@ -142,7 +172,10 @@ def inspect_experiment(
 
 @experiments_cli.command("delete")
 @click.option(
-    "--experiment-name", required=True, help="The name of the experiment to delete."
+    "--name",
+    "experiment_name",
+    required=True,
+    help="The name of the experiment to delete.",
 )
 def delete_experiment(experiment_name: str):
     """Delete an experiment and its associated data."""
@@ -173,10 +206,7 @@ def delete_experiment(experiment_name: str):
     "--type",
     "experiment_type",
     required=True,
-    type=click.Choice(
-        ["ab-test", "bernoulli", "multi-armed-bandits", "poisson-cohorts"],
-        case_sensitive=False,
-    ),
+    type=ExperimentType(),
     help="The type of the experiments to delete.",
 )
 def delete_experiments_by_type(experiment_type: str):
@@ -226,7 +256,12 @@ def delete_experiments_by_type(experiment_type: str):
 
 
 @experiments_cli.command("list-cache")
-@click.option("--experiment-name", required=True, help="The name of the experiment.")
+@click.option(
+    "--name",
+    "experiment_name",
+    required=True,
+    help="The name of the experiment.",
+)
 def list_cache(experiment_name: str):
     """List all cached MLflow runs for an experiment."""
     client = APIClient()
@@ -250,7 +285,12 @@ def list_cache(experiment_name: str):
 
 
 @experiments_cli.command("clear-cache")
-@click.option("--experiment-name", required=True, help="The name of the experiment.")
+@click.option(
+    "--name",
+    "experiment_name",
+    required=True,
+    help="The name of the experiment.",
+)
 def clear_cache(experiment_name: str):
     """Clear the MLflow cache for an experiment."""
     client = APIClient()
@@ -269,5 +309,47 @@ def clear_cache(experiment_name: str):
             }
             click.echo(json.dumps(error_message, indent=2), err=True)
     except httpx.RequestError as e:
+        error_message = {"error": "Failed to connect to API", "details": str(e)}
+        click.echo(json.dumps(error_message, indent=2), err=True)
+
+
+@experiments_cli.command("update")
+@click.option(
+    "--name",
+    "experiment_name",
+    required=True,
+    help="The unique identifier for the experiment.",
+)
+@click.option(
+    "--file",
+    "event_data",
+    type=click.File("r"),
+    default="-",
+    help="Path to a JSON file containing the events (defaults to stdin).",
+)
+def update_experiment(experiment_name: str, event_data):
+    """Append a batch of event data to a specific experiment."""
+    try:
+        data = json.load(event_data)
+        if not isinstance(data, list):
+            raise ValueError("Input must be a JSON array of event objects.")
+    except (json.JSONDecodeError, ValueError) as e:
+        error_message = {"error": "Invalid event data provided", "details": str(e)}
+        click.echo(json.dumps(error_message, indent=2), err=True)
+        return
+
+    client = APIClient()
+    try:
+        response = client.upload_events(experiment_name, data)
+        click.echo(json.dumps(response.json(), indent=2))
+    except httpx.HTTPStatusError as e:
+        # Handle HTTP errors (e.g., 404 Not Found, 400 Bad Request)
+        try:
+            error_details = e.response.json()
+        except json.JSONDecodeError:
+            error_details = {"error": "Unknown API error", "details": e.response.text}
+        click.echo(json.dumps(error_details, indent=2), err=True)
+    except httpx.RequestError as e:
+        # Handle network errors (e.g., connection refused)
         error_message = {"error": "Failed to connect to API", "details": str(e)}
         click.echo(json.dumps(error_message, indent=2), err=True)

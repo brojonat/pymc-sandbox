@@ -1,6 +1,5 @@
-{% extends "detail_base.html" %} {% block title %}pymc-vibes: Bernoulli Trial{%
-endblock %} {% block chart_content %}
+{% extends "base.html" %} {% block content %}
+<div id="trials-container" class="mb-8"></div>
 <div id="chart-container" data-experiment-name="{{ experiment.name }}"></div>
-<hr />
-<div id="trials-container"></div>
-{% endblock %} {% block javascript_module %}/static/bernoulli.js{% endblock %}
+<script type="module" src="/static/bernoulli.js"></script>
+{% endblock %}

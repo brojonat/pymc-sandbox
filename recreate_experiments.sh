@@ -21,7 +21,7 @@ if [ -z "$EXPERIMENT_NAMES" ]; then
 else
     for NAME in $EXPERIMENT_NAMES; do
         echo "Deleting experiment: $NAME"
-        vibes experiments delete --experiment-name "$NAME" > /dev/null
+        vibes experiments delete --name "$NAME" > /dev/null
     done
     echo "All old experiments deleted."
 fi
@@ -35,26 +35,26 @@ echo "--- Recreating standard experiments ---"
 echo "Creating 'ab-test-1'..."
 vibes generate ab-test --variant "treatment-a:0.1" --variant "treatment-b:0.37" | \
     vibes experiments create \
-        --experiment-name "red-vs-blue" \
+        --name "red-vs-blue" \
         --display-name "A/B Test 1" \
         --type "ab-test"
 
 vibes generate ab-test --variant "treatment-a:0.2" --variant "treatment-b:0.4" --variant "treatment-c:0.8" | \
     vibes experiments create \
-        --experiment-name "red-vs-blue-green" \
+        --name "red-vs-blue-green" \
         --type "ab-test"
 
 # Bernoulli
 echo "Creating 'bernoulli-1'..."
 vibes generate bernoulli | \
     vibes experiments create \
-        --experiment-name "bernoulli-1" \
+        --name "bernoulli-1" \
         --display-name "Bernoulli 1" \
         --type "bernoulli"
 
 vibes generate bernoulli --prob 0.7 | \
     vibes experiments create \
-        --experiment-name "bernoulli-2" \
+        --name "bernoulli-2" \
         --type "bernoulli"
 
 # Poisson Cohorts
@@ -63,7 +63,7 @@ vibes generate  poisson-cohorts \
     --rate 'c-1:tire:2.0' --rate 'c-1:brake:1.0' --rate 'c-2:fire:8.0' \
     --start-date 2001-01-05 --days 90 | \
     vibes experiments create \
-        --experiment-name "poisson-cohorts-1" \
+        --name "poisson-cohorts-1" \
         --display-name "Poisson Cohorts 1" \
         --type "poisson-cohorts"
 
@@ -71,7 +71,7 @@ vibes generate  poisson-cohorts \
     --rate 'c-1:tire:3.0' --rate 'c-1:brake:12.0' \
     --start-date 2005-01-02 --days 90 | \
     vibes experiments create \
-        --experiment-name "poisson-cohorts-2" \
+        --name "poisson-cohorts-2" \
         --type "poisson-cohorts"
 
 echo ""

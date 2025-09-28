@@ -1,18 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>pymc-vibes</title>
-  </head>
-  <body>
-    <h1>pymc-vibes</h1>
-    <p>Available pages:</p>
-    <ul>
-      <li><a href="/bernoulli">Bernoulli</a></li>
-      <li><a href="/ab-test">AB Test</a></li>
-      <li><a href="/multi-armed-bandits">Multi Armed Bandits</a></li>
-      <li><a href="/poisson-cohorts">Poisson Cohorts</a></li>
-    </ul>
-  </body>
-</html>
+{% extends "base.html" %} {% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <a
+    href="/ab-test"
+    class="block p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 transition-colors"
+  >
+    <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900">
+      A/B Tests
+    </h5>
+    <p class="font-normal text-gray-700">
+      Compare two or more variants to determine which one performs better.
+    </p>
+  </a>
+
+  <a
+    href="/bernoulli"
+    class="block p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 transition-colors"
+  >
+    <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900">
+      Bernoulli Trials
+    </h5>
+    <p class="font-normal text-gray-700">
+      Model processes with binary outcomes (e.g., success/failure,
+      click/no-click).
+    </p>
+  </a>
+
+  <a
+    href="/multi-armed-bandits"
+    class="block p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 transition-colors"
+  >
+    <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900">
+      Multi-Armed Bandits
+    </h5>
+    <p class="font-normal text-gray-700">
+      Dynamically allocate traffic to the best-performing variant over time.
+    </p>
+  </a>
+
+  <a
+    href="/poisson-cohorts"
+    class="block p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 transition-colors"
+  >
+    <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900">
+      Poisson Cohorts
+    </h5>
+    <p class="font-normal text-gray-700">
+      Analyze and compare event rates (e.g., sign-ups, purchases) across
+      different cohorts.
+    </p>
+  </a>
+
+  <a
+    href="/weibull"
+    class="block p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 transition-colors"
+  >
+    <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900">
+      Weibull Survival
+    </h5>
+    <p class="font-normal text-gray-700">
+      Model time-to-event data, such as user churn or hardware failure.
+    </p>
+  </a>
+
+  <a
+    href="/hazard-rate"
+    class="block p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 transition-colors"
+  >
+    <h5 class="mb-2 text-2xl font-bold tracking-tight text-gray-900">
+      Hazard Rate
+    </h5>
+    <p class="font-normal text-gray-700">
+      Estimate the instantaneous risk of an event occurring at a certain time.
+    </p>
+  </a>
+</div>
+{% endblock %}

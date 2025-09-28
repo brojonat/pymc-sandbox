@@ -90,11 +90,11 @@ function renderPosterior(container, data) {
     .domain([0, d3.max(curve.y) * 1.1])
     .range([height, 0]);
 
-  // 4. Create the density line from pre-computed data
-  const line = d3
-    .line()
+  const area = d3
+    .area()
     .x((d, i) => xScale(curve.x[i]))
-    .y((d) => yScale(d))
+    .y0(height)
+    .y1((d) => yScale(d))
     .curve(d3.curveBasis);
 
   svg
@@ -104,7 +104,7 @@ function renderPosterior(container, data) {
     .attr("fill-opacity", 0.4)
     .attr("stroke", "#000")
     .attr("stroke-width", 1.5)
-    .attr("d", `M0,${height} ` + line(curve.y) + ` L${width},${height}`);
+    .attr("d", area);
 
   // 5. Draw X axis and label
   svg
@@ -145,7 +145,10 @@ function renderPosterior(container, data) {
 async function loadAndRenderPosterior(experimentName) {
   posteriorContainer.innerHTML = "<p>Fitting model...</p>";
   try {
-    const posteriorData = await apiClient.getPosterior(experimentName);
+    const posteriorData = await apiClient.getPosterior(
+      "bernoulli",
+      experimentName
+    );
     renderPosterior(posteriorContainer, posteriorData);
   } catch (e) {
     console.error(e);

@@ -71,6 +71,18 @@ class APIClient:
         response.raise_for_status()
         return response
 
+    def get_experiment_schema(
+        self, experiment_type: Optional[str] = None
+    ) -> httpx.Response:
+        """Gets the schema for a given experiment type."""
+        url = "/experiments/schema"
+        params = {}
+        if experiment_type:
+            params["type"] = experiment_type
+        response = self.client.get(url, params=params)
+        response.raise_for_status()
+        return response
+
     def upload_events(
         self, experiment_name: str, events: List[Dict[str, Any]]
     ) -> httpx.Response:

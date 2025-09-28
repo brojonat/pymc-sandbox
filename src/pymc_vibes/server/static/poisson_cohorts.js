@@ -8,7 +8,6 @@ const timelinesContainer = document.getElementById("timelines-container");
 const globalTimelineContainer = document.getElementById(
   "global-timeline-container"
 );
-const groupByCheckboxes = document.querySelectorAll(".group-by-checkbox");
 
 // --- KDE Helper Functions ---
 function kernelDensityEstimator(kernel, X) {
@@ -240,10 +239,11 @@ function renderSinglePosterior(
   const xScale = d3.scaleLinear().domain(xDomain).range([0, width]);
   const yScale = d3.scaleLinear().domain(yDomain).range([height, 0]);
 
-  const line = d3
-    .line()
+  const area = d3
+    .area()
     .x((d, i) => xScale(curve.x[i]))
-    .y((d) => yScale(d))
+    .y0(height)
+    .y1((d) => yScale(d))
     .curve(d3.curveBasis);
 
   svg
@@ -253,7 +253,7 @@ function renderSinglePosterior(
     .attr("fill-opacity", 0.4)
     .attr("stroke", "#000")
     .attr("stroke-width", 1.5)
-    .attr("d", `M0,${height} ` + line(curve.y) + ` L${width},${height}`);
+    .attr("d", area);
 
   svg
     .append("g")
@@ -434,13 +434,10 @@ function renderPosteriors(container, data) {
   }
 }
 
-async function fetchAndRender() {
+export async function fetchAndRender(groupBy) {
   const experimentName = posteriorContainer.dataset.experimentName;
-  const groupBy = Array.from(groupByCheckboxes)
-    .filter((cb) => cb.checked)
-    .map((cb) => cb.value);
 
-  if (groupBy.length === 0) {
+  if (!groupBy || groupBy.length === 0) {
     // Prevent fetching/rendering if nothing is selected
     posteriorContainer.innerHTML =
       "<p>Please select at least one dimension to group by.</p>";
@@ -477,8 +474,9 @@ async function fetchAndRender() {
       ...d,
       timestamp: d3.isoParse(d.timestamp),
     }));
-    // The d3.group function can take an array of accessors to group by multiple dimensions
-    groupedEvents = d3.group(processedData, ...groupBy.map((g) => (d) => d[g]));
+    // Create a single composite key for grouping instead of nesting
+    const groupAccessor = (d) => groupBy.map((key) => d[key]).join(" | ");
+    groupedEvents = d3.group(processedData, groupAccessor);
     timeDomain = d3.extent(processedData, (d) => d.timestamp);
 
     if (!timeDomain[0] || !timeDomain[1]) {
@@ -499,7 +497,8 @@ async function fetchAndRender() {
   // Then fetch posterior data asynchronously
   try {
     const [start, end] = timeDomain;
-    const posteriorData = await apiClient.getPoissonCohortsPosterior(
+    const posteriorData = await apiClient.getPosterior(
+      "poisson-cohorts",
       experimentName,
       {
         start: start.toISOString(),
@@ -513,12 +512,3 @@ async function fetchAndRender() {
     posteriorContainer.innerText = `Error loading posterior: ${e.message}`;
   }
 }
-
-async function main() {
-  groupByCheckboxes.forEach((cb) =>
-    cb.addEventListener("change", fetchAndRender)
-  );
-  await fetchAndRender();
-}
-
-main();

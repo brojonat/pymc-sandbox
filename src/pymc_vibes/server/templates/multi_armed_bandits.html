@@ -1,7 +1,8 @@
-{% extends "detail_base.html" %} {% block title %}pymc-vibes: Multi-Armed
-Bandits{% endblock %} {% block chart_content %}
-<div id="chart-container" data-experiment-name="{{ experiment.name }}"></div>
-<hr />
-<div id="trials-container"></div>
-{% endblock %} {% block javascript_module %}/static/multi_armed_bandits.js{%
-endblock %}
+{% extends "base.html" %} {% block content %}
+<div class="space-y-8">
+  <div id="trials-container"></div>
+  <div id="chart-container" data-experiment-name="{{ experiment.name }}"></div>
+  <div id="expected-reward-container"></div>
+</div>
+<script type="module" src="/static/multi_armed_bandits.js"></script>
+{% endblock %}

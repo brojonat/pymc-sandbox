@@ -104,10 +104,11 @@ function renderSinglePosterior(
   const xScale = d3.scaleLinear().domain(xDomain).range([0, width]);
   const yScale = d3.scaleLinear().domain(yDomain).range([height, 0]);
 
-  const line = d3
-    .line()
+  const area = d3
+    .area()
     .x((d, i) => xScale(curve.x[i]))
-    .y((d) => yScale(d))
+    .y0(height)
+    .y1((d) => yScale(d))
     .curve(d3.curveBasis);
 
   svg
@@ -117,7 +118,7 @@ function renderSinglePosterior(
     .attr("fill-opacity", 0.4)
     .attr("stroke", "#000")
     .attr("stroke-width", 1.5)
-    .attr("d", `M0,${height} ` + line(curve.y) + ` L${width},${height}`);
+    .attr("d", area);
 
   svg
     .append("g")
@@ -321,7 +322,10 @@ async function main() {
 
   // Then fetch posterior data asynchronously
   try {
-    const posteriorData = await apiClient.getABTestPosterior(experimentName);
+    const posteriorData = await apiClient.getPosterior(
+      "ab-test",
+      experimentName
+    );
     renderPosteriors(posteriorContainer, posteriorData);
   } catch (e) {
     console.error(e);

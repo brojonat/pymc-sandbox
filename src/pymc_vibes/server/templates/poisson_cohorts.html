@@ -1,26 +1,53 @@
-{% extends "base.html" %} {% block title %}pymc-vibes: Poisson Cohorts{%
-endblock %} {% block content %}
-<div class="chart-controls">
-  <span>Group By:</span>
-  <input
-    type="checkbox"
-    id="group-by-cohort"
-    value="cohort"
-    class="group-by-checkbox"
-    checked
-  />
-  <label for="group-by-cohort">Cohort</label>
-  <input
-    type="checkbox"
-    id="group-by-event-type"
-    value="event_type"
-    class="group-by-checkbox"
-  />
-  <label for="group-by-event-type">Event Type</label>
+{% extends "base.html" %} {% block content %}
+<div
+  x-data='{ "groupBy": ["cohort"] }'
+  @change="
+    const newGroupBy = Array.from($el.querySelectorAll('.group-by-checkbox:checked')).map(cb => cb.value);
+    groupBy = newGroupBy.length > 0 ? newGroupBy : [];
+    fetchAndRender(groupBy);
+  "
+  class="mb-4 p-4 border rounded-md bg-gray-50"
+>
+  <h3 class="font-semibold text-lg mb-2">Group By Dimensions</h3>
+  <div class="flex flex-wrap gap-x-6 gap-y-2">
+    <label class="inline-flex items-center">
+      <input
+        type="checkbox"
+        class="form-checkbox group-by-checkbox"
+        value="cohort"
+        x-model="groupBy"
+      />
+      <span class="ml-2">Cohort</span>
+    </label>
+    <label class="inline-flex items-center">
+      <input
+        type="checkbox"
+        class="form-checkbox group-by-checkbox"
+        value="event_type"
+        x-model="groupBy"
+      />
+      <span class="ml-2">Event Type</span>
+    </label>
+  </div>
 </div>
+
 <div id="chart-container" data-experiment-name="{{ experiment.name }}"></div>
-<div id="global-timeline-container"></div>
+<hr class="my-8" />
+<div id="global-timeline-container" class="mb-8"></div>
 <div id="timelines-container"></div>
-{% endblock %} {% block scripts %}
-<script type="module" src="/static/poisson_cohorts.js"></script>
+<script type="module">
+  import { fetchAndRender } from "/static/poisson_cohorts.js";
+
+  // Expose to global scope for Alpine to call
+  window.fetchAndRender = fetchAndRender;
+
+  // Initial call on page load
+  document.addEventListener("DOMContentLoaded", () => {
+    // We get the initial state from the x-data directive
+    const initialGroupBy =
+      JSON.parse(document.querySelector("[x-data]").getAttribute("x-data"))
+        .groupBy || [];
+    fetchAndRender(initialGroupBy);
+  });
+</script>
 {% endblock %}

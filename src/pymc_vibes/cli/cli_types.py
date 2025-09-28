@@ -38,3 +38,33 @@ class Timestamp(click.ParamType):
                     f"Expected a Unix timestamp (e.g., 1672531200) or a "
                     f"string in one of these formats: {', '.join(self.formats)}."
                 )
+
+
+SUPPORTED_EXPERIMENTS = [
+    "ab-test",
+    "bernoulli",
+    "multi-armed-bandits",
+    "poisson-cohorts",
+    "weibull",
+    "hazard-rate",
+]
+
+
+class ExperimentType(click.ParamType):
+    name = "experiment_type"
+
+    def convert(self, value, param, ctx):
+        if value not in SUPPORTED_EXPERIMENTS:
+            self.fail(
+                f"invalid choice: {value}. (choose from {', '.join(sorted(SUPPORTED_EXPERIMENTS))})",
+                param,
+                ctx,
+            )
+        return value
+
+    def shell_complete(self, ctx, param, incomplete):
+        from click.shell_completion import CompletionItem
+
+        return [
+            CompletionItem(t) for t in SUPPORTED_EXPERIMENTS if t.startswith(incomplete)
+        ]

@@ -33,22 +33,10 @@ class ApiClient {
     return this._request(`/experiments/data?${query}`);
   }
 
-  getPosterior(experimentName, params = {}) {
+  getPosterior(experimentType, experimentName, params = {}) {
     const allParams = { experiment_name: experimentName, ...params };
     const query = this._buildQuery(allParams);
-    return this._request(`/bernoulli/posterior?${query}`);
-  }
-
-  getABTestPosterior(experimentName, params = {}) {
-    const allParams = { experiment_name: experimentName, ...params };
-    const query = this._buildQuery(allParams);
-    return this._request(`/ab-test/posterior?${query}`);
-  }
-
-  getPoissonCohortsPosterior(experimentName, params = {}) {
-    const allParams = { experiment_name: experimentName, ...params };
-    const query = this._buildQuery(allParams);
-    return this._request(`/poisson-cohorts/posterior?${query}`);
+    return this._request(`/${experimentType}/posterior?${query}`);
   }
 
   deleteExperiment(experimentName) {
