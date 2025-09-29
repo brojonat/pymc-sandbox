@@ -30,12 +30,10 @@
       {% for experiment in experiments %}
       <tr
         class="hover:bg-gray-100 cursor-pointer"
-        hx-get="/{{ experiment_type }}?experiment_name={{ experiment.name }}"
-        hx-push-url="true"
-        hx-target="body"
+        onclick="window.location.href='/{{ experiment_type }}?experiment_name={{ experiment.name }}'"
       >
         <td
-          class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"
+          class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:underline"
         >
           {{ experiment.name }}
         </td>

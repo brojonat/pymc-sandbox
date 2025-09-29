@@ -96,7 +96,9 @@ def get_posterior(
 
     results: dict[str, Any] = {}
     for group_key, group_df in results_df.groupby(group_by):
-        event_timestamps = group_df["timestamp"]
+        fit_kwargs = {"ts_start": start, "ts_end": end}
+        if "exposure" in group_df.columns:
+            fit_kwargs["exposure"] = group_df["exposure"].sum()
 
         # Ensure the group key is a string for the experiment name
         key_str = (
@@ -109,9 +111,9 @@ def get_posterior(
 
         idata = get_or_create_idata(
             experiment_name=group_experiment_name,
-            data=event_timestamps,
-            model_fit_function=lambda ts: fit_poisson_rate(
-                ts, ts_start=start, ts_end=end
+            data=group_df,  # Pass the whole dataframe for correct hashing
+            model_fit_function=lambda df: fit_poisson_rate(
+                df["timestamp"], **fit_kwargs
             ),
             mlflow_client=mlflow_client,
         )

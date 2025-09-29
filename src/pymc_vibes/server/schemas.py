@@ -18,3 +18,9 @@ class ABTestEvent(Event):
 
     treatment: str  # e.g., 'A', 'B', 'control'
     conversion: bool  # e.g., True for click, False for no click
+
+
+class PoissonEvent(Event):
+    """An event with an optional exposure value."""
+
+    exposure: float | None = None

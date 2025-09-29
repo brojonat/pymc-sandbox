@@ -3,11 +3,19 @@ import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
 
 import { apiClient } from "/static/client.js";
 
-const posteriorContainer = document.getElementById("chart-container");
-const timelinesContainer = document.getElementById("timelines-container");
-const globalTimelineContainer = document.getElementById(
-  "global-timeline-container"
-);
+// --- Create a global tooltip ---
+const tooltip = d3
+  .select("body")
+  .append("div")
+  .style("opacity", 0)
+  .style("position", "absolute")
+  .style("background-color", "rgba(0, 0, 0, 0.8)")
+  .style("color", "white")
+  .style("padding", "5px 10px")
+  .style("border-radius", "4px")
+  .style("font-size", "12px")
+  .style("pointer-events", "none")
+  .style("z-index", "10");
 
 // --- KDE Helper Functions ---
 function kernelDensityEstimator(kernel, X) {
@@ -45,13 +53,15 @@ function renderSingleTimeline(container, cohortName, cohortData, timeDomain) {
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   // 3. Define scales
-  const xScale = d3.scaleUtc().domain(timeDomain).range([0, width]);
+  const [start, end] = timeDomain;
+  const xScale = d3.scaleUtc().domain([start, end]).range([0, width]);
 
   // 4. Draw event ticks
   svg
-    .selectAll("line")
+    .selectAll("event-line")
     .data(cohortData)
     .join("line")
+    .attr("class", "event-line")
     .attr("x1", (d) => xScale(d.timestamp))
     .attr("x2", (d) => xScale(d.timestamp))
     .attr("y1", 0)
@@ -59,6 +69,32 @@ function renderSingleTimeline(container, cohortName, cohortData, timeDomain) {
     .attr("stroke", "black")
     .attr("stroke-width", 1)
     .attr("stroke-opacity", 0.5);
+
+  // Add wider, transparent lines for easier hovering
+  svg
+    .selectAll("hover-line")
+    .data(cohortData)
+    .join("line")
+    .attr("class", "hover-line")
+    .attr("x1", (d) => xScale(d.timestamp))
+    .attr("x2", (d) => xScale(d.timestamp))
+    .attr("y1", 0)
+    .attr("y2", height)
+    .attr("stroke", "transparent")
+    .attr("stroke-width", 8) // Wider hover area
+    .style("cursor", "pointer")
+    .on("mouseover", () => {
+      tooltip.style("opacity", 1);
+    })
+    .on("mousemove", (event, d) => {
+      tooltip
+        .html(d.timestamp.toLocaleString())
+        .style("left", `${event.pageX + 15}px`)
+        .style("top", `${event.pageY - 15}px`);
+    })
+    .on("mouseout", () => {
+      tooltip.style("opacity", 0);
+    });
 
   // 5. Draw X axis
   svg
@@ -89,7 +125,7 @@ function renderSingleTimeline(container, cohortName, cohortData, timeDomain) {
 function renderGlobalTimeline(container, cohortEvents, timeDomain) {
   // 1. Setup dimensions
   container.innerHTML = "";
-  const margin = { top: 30, right: 30, bottom: 40, left: 50 };
+  const margin = { top: 30, right: 30, bottom: 40, left: 30 };
   const width = container.clientWidth - margin.left - margin.right;
   const height = 150 - margin.top - margin.bottom;
 
@@ -103,7 +139,8 @@ function renderGlobalTimeline(container, cohortEvents, timeDomain) {
     .attr("transform", `translate(${margin.left},${margin.top})`);
 
   // 3. Define scales
-  const xScale = d3.scaleUtc().domain(timeDomain).range([0, width]);
+  const [start, end] = timeDomain;
+  const xScale = d3.scaleUtc().domain([start, end]).range([0, width]);
   const color = d3.scaleOrdinal(d3.schemeCategory10);
 
   // 4. Compute KDE for each cohort
@@ -170,7 +207,7 @@ function renderGlobalTimeline(container, cohortEvents, timeDomain) {
     .attr("text-anchor", "middle")
     .style("font-size", "14px")
     .style("font-weight", "bold")
-    .text("Global Event Distribution");
+    .text("Event Distribution");
 
   const legend = svg
     .selectAll(".legend")
@@ -224,7 +261,7 @@ function renderSinglePosterior(
   const hdi_lower = statsData[stats.columns.indexOf("hdi_3%")];
   const hdi_upper = statsData[stats.columns.indexOf("hdi_97%")];
 
-  const margin = { top: 60, right: 30, bottom: 50, left: 50 };
+  const margin = { top: 60, right: 10, bottom: 50, left: 10 };
   const width = container.clientWidth - margin.left - margin.right;
   const height = chartHeight - margin.top - margin.bottom;
 
@@ -264,7 +301,7 @@ function renderSinglePosterior(
     .attr("text-anchor", "middle")
     .attr("x", width / 2)
     .attr("y", height + margin.bottom - 10)
-    .text("λ [events/day]");
+    .text("Rate [events/day/unit]");
 
   svg
     .append("text")
@@ -275,26 +312,41 @@ function renderSinglePosterior(
     .style("font-weight", "bold")
     .text(title);
 
-  const statsText =
-    `Mean: ${mean.toFixed(3)} | ` +
-    `Median: ${median.toFixed(3)} | ` +
-    `94% HDI: [${hdi_lower.toFixed(3)}, ${hdi_upper.toFixed(3)}]`;
-
-  svg
+  const statsLabel = svg
     .append("text")
     .attr("x", width / 2)
-    .attr("y", 20 - margin.top / 2)
+    .attr("y", 15 - margin.top / 2)
     .attr("text-anchor", "middle")
-    .style("font-size", "12px")
-    .text(statsText);
+    .style("font-size", "12px");
+
+  statsLabel
+    .append("tspan")
+    .text(`Mean: ${mean.toFixed(3)} | Median: ${median.toFixed(3)}`);
+
+  statsLabel
+    .append("tspan")
+    .attr("x", width / 2)
+    .attr("dy", "1.2em")
+    .text(`94% HDI: [${hdi_lower.toFixed(3)}, ${hdi_upper.toFixed(3)}]`);
 }
 
-function renderPosteriors(container, data) {
+export function renderPosteriors(container, data, groupNames) {
   // data is a dictionary of { groupName: PosteriorSummary }
   container.innerHTML = "";
 
   // --- 1. Calculate Global Domains & Sort Groups ---
-  const groupNames = Object.keys(data).sort();
+  if (!groupNames) {
+    groupNames = Object.keys(data).sort((a, b) => {
+      const summaryA = data[a];
+      const summaryB = data[b];
+      const meanA =
+        summaryA.stats.data[0][summaryA.stats.columns.indexOf("mean")];
+      const meanB =
+        summaryB.stats.data[0][summaryB.stats.columns.indexOf("mean")];
+      return meanA - meanB;
+    });
+  }
+
   if (groupNames.length === 0) {
     container.innerHTML = "<p>No posterior data to display.</p>";
     return;
@@ -309,17 +361,18 @@ function renderPosteriors(container, data) {
   // --- 2. Create Layout Containers ---
   const mainFlexContainer = document.createElement("div");
   mainFlexContainer.style.display = "flex";
+  mainFlexContainer.style.width = "100%";
   mainFlexContainer.style.alignItems = "flex-start";
   mainFlexContainer.style.gap = "20px";
 
   const leftColumnContainer = document.createElement("div");
-  leftColumnContainer.style.flex = "1";
+  leftColumnContainer.style.flex = "4";
   leftColumnContainer.style.display = "flex";
   leftColumnContainer.style.flexDirection = "column";
   leftColumnContainer.style.gap = "10px";
 
   const rightColumnContainer = document.createElement("div");
-  rightColumnContainer.style.flex = "2";
+  rightColumnContainer.style.flex = "6";
 
   mainFlexContainer.appendChild(leftColumnContainer);
   mainFlexContainer.appendChild(rightColumnContainer);
@@ -327,7 +380,7 @@ function renderPosteriors(container, data) {
 
   // --- 3. Render Combined Plot (Right Column) ---
   const combinedPlotHeight = 500;
-  const margin = { top: 60, right: 30, bottom: 50, left: 50 };
+  const margin = { top: 60, right: 5, bottom: 50, left: 55 };
   const combinedWidth =
     rightColumnContainer.clientWidth - margin.left - margin.right;
   const combinedHeight = combinedPlotHeight - margin.top - margin.bottom;
@@ -380,7 +433,7 @@ function renderPosteriors(container, data) {
     .attr("text-anchor", "middle")
     .attr("x", combinedWidth / 2)
     .attr("y", combinedHeight + margin.bottom - 10)
-    .text("λ [events/day]");
+    .text("Rate [events/day/unit]");
   combinedSvg
     .append("text")
     .attr("x", combinedWidth / 2)
@@ -422,11 +475,13 @@ function renderPosteriors(container, data) {
     const groupContainer = document.createElement("div");
     leftColumnContainer.appendChild(groupContainer);
 
+    const localXDomain = d3.extent(summary.curve.x);
+
     renderSinglePosterior(
       groupContainer,
       `Posterior for ${name}`,
       summary,
-      globalXDomain,
+      localXDomain,
       globalYDomain,
       individualPlotHeight,
       color(name)
@@ -434,7 +489,62 @@ function renderPosteriors(container, data) {
   }
 }
 
-export async function fetchAndRender(groupBy) {
+export function scalePosteriorData(posteriorData, exposures) {
+  if (!posteriorData) return null;
+  const scaledPosteriorData = {};
+  for (const groupName in posteriorData) {
+    const summary = posteriorData[groupName];
+    const exposure = exposures[groupName];
+
+    if (exposure) {
+      // Scale statistical summary
+      const scaledStats = JSON.parse(JSON.stringify(summary.stats)); // Deep copy
+      const rateMetrics = [
+        "mean",
+        "median",
+        "hdi_3%",
+        "hdi_97%",
+        "sd",
+        "r_hat",
+        "ess_bulk",
+        "ess_tail",
+      ];
+      const colIndices = scaledStats.columns.reduce((acc, col, i) => {
+        if (rateMetrics.includes(col)) acc[col] = i;
+        return acc;
+      }, {});
+
+      scaledStats.data.forEach((row) => {
+        for (const metric of ["mean", "median", "hdi_3%", "hdi_97%", "sd"]) {
+          if (colIndices[metric] !== undefined) {
+            row[colIndices[metric]] /= exposure;
+          }
+        }
+      });
+
+      // Scale KDE curve
+      const scaledCurve = {
+        x: summary.curve.x.map((val) => val / exposure),
+        y: summary.curve.y.map((val) => val * exposure),
+      };
+
+      scaledPosteriorData[groupName] = {
+        stats: scaledStats,
+        curve: scaledCurve,
+      };
+    } else {
+      scaledPosteriorData[groupName] = summary;
+    }
+  }
+  return scaledPosteriorData;
+}
+
+export async function fetchAndRenderAll(groupBy) {
+  const posteriorContainer = document.getElementById("chart-container");
+  const timelinesContainer = document.getElementById("timelines-container");
+  const globalTimelineContainer = document.getElementById(
+    "global-timeline-container"
+  );
   const experimentName = posteriorContainer.dataset.experimentName;
 
   if (!groupBy || groupBy.length === 0) {
@@ -443,13 +553,13 @@ export async function fetchAndRender(groupBy) {
       "<p>Please select at least one dimension to group by.</p>";
     globalTimelineContainer.innerHTML = "";
     timelinesContainer.innerHTML = "";
-    return;
+    return { posteriorData: null, cohortNames: [] };
   }
 
   if (!experimentName) {
     timelinesContainer.innerText = "Could not find experiment name.";
     posteriorContainer.innerText = "";
-    return;
+    return { posteriorData: null, cohortNames: [] };
   }
 
   // Show loading messages
@@ -467,7 +577,7 @@ export async function fetchAndRender(groupBy) {
     if (!data.rows || data.rows.length === 0) {
       timelinesContainer.innerText = "No event data to display.";
       posteriorContainer.innerHTML = "";
-      return;
+      return { posteriorData: null, cohortNames: [] };
     }
 
     const processedData = data.rows.map((d) => ({
@@ -482,7 +592,7 @@ export async function fetchAndRender(groupBy) {
     if (!timeDomain[0] || !timeDomain[1]) {
       timelinesContainer.innerText = "No valid timestamps found in event data.";
       posteriorContainer.innerHTML = "";
-      return;
+      return { posteriorData: null, cohortNames: [] };
     }
 
     renderGlobalTimeline(globalTimelineContainer, groupedEvents, timeDomain);
@@ -491,7 +601,7 @@ export async function fetchAndRender(groupBy) {
     console.error(e);
     timelinesContainer.innerText = `Error loading data: ${e.message}`;
     posteriorContainer.innerHTML = ""; // Clear fitting model message
-    return;
+    return { posteriorData: null, cohortNames: [] };
   }
 
   // Then fetch posterior data asynchronously
@@ -506,9 +616,14 @@ export async function fetchAndRender(groupBy) {
         group_by: groupBy,
       }
     );
-    renderPosteriors(posteriorContainer, posteriorData);
+
+    return { posteriorData, cohortNames: Array.from(groupedEvents.keys()) };
   } catch (e) {
     console.error(e);
     posteriorContainer.innerText = `Error loading posterior: ${e.message}`;
+    return {
+      posteriorData: null,
+      cohortNames: Array.from(groupedEvents.keys()),
+    };
   }
 }

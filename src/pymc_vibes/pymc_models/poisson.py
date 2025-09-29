@@ -13,6 +13,7 @@ def fit_poisson_rate(
     ts_start: datetime,
     ts_end: datetime,
     population: int = 1,
+    exposure: Optional[float] = None,
     unit: str = "day",
 ) -> az.InferenceData:
     """
@@ -28,6 +29,9 @@ def fit_poisson_rate(
         The end of the observation period.
     population : int, optional
         The total number of vehicles in the cohort.
+    exposure : float, optional
+        The total exposure, defined as `population * duration_in_unit`.
+        If provided, `population` and `duration` are ignored for exposure calculation.
     unit : str, optional
         The time unit for the rate (e.g., "second", "hour", "day"), by default "day".
 
@@ -37,32 +41,34 @@ def fit_poisson_rate(
         The ArviZ InferenceData object containing the posterior samples for the
         per-vehicle rate.
     """
-    duration_seconds = (ts_end - ts_start).total_seconds()
     n_events = len(event_timestamps)
 
-    # Normalize duration to the desired unit
-    if unit == "day":
-        duration_in_unit = duration_seconds / (24 * 60 * 60)
-    elif unit == "hour":
-        duration_in_unit = duration_seconds / (60 * 60)
-    elif unit == "minute":
-        duration_in_unit = duration_seconds / 60
-    elif unit == "second":
-        duration_in_unit = duration_seconds
+    if exposure is None:
+        duration_seconds = (ts_end - ts_start).total_seconds()
+
+        # Normalize duration to the desired unit
+        if unit == "day":
+            duration_in_unit = duration_seconds / (24 * 60 * 60)
+        elif unit == "hour":
+            duration_in_unit = duration_seconds / (60 * 60)
+        elif unit == "minute":
+            duration_in_unit = duration_seconds / 60
+        elif unit == "second":
+            duration_in_unit = duration_seconds
+        else:
+            raise ValueError(
+                "Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'."
+            )
+        total_exposure = population * duration_in_unit
     else:
-        raise ValueError(
-            "Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'."
-        )
+        total_exposure = exposure
 
     with pm.Model() as model:
         # Prior for the per-vehicle rate (lambda)
         rate = pm.Exponential("rate", lam=1.0)
 
-        # The effective rate is the per-vehicle rate times the population
-        effective_rate = rate * population
-
         # Likelihood of the observed number of events
-        pm.Poisson("n_events", mu=effective_rate * duration_in_unit, observed=n_events)
+        pm.Poisson("n_events", mu=rate * total_exposure, observed=n_events)
 
         # Sample from the posterior
         idata = pm.sample()
@@ -127,6 +133,7 @@ def generate_poisson_events(
     ts_end: datetime,
     rate: float,
     population: int = 1,
+    exposure: Optional[float] = None,
     unit: str = "day",
     random_seed: Optional[int] = None,
 ) -> list[float]:
@@ -146,6 +153,9 @@ def generate_poisson_events(
         The average number of events per vehicle per `unit` of time (lambda).
     population : int
         The total number of vehicles in the cohort.
+    exposure : float, optional
+        The total exposure, defined as `population * duration_in_unit`.
+        If provided, `population` and `duration` are ignored for exposure calculation.
     unit : str, optional
         The time unit for the rate (e.g., "second", "hour", "day"), by default "day".
 
@@ -154,22 +164,30 @@ def generate_poisson_events(
     list[float]
         A list of generated timestamps as Unix timestamps (floats).
     """
-    # The total rate for the cohort is the per-vehicle rate multiplied by the population
-    total_rate = rate * population
-
-    # Normalize rate to be per second for the helper function
-    if unit == "day":
-        rate_per_second = total_rate / (24 * 60 * 60)
-    elif unit == "hour":
-        rate_per_second = total_rate / (60 * 60)
-    elif unit == "minute":
-        rate_per_second = total_rate / 60
-    elif unit == "second":
-        rate_per_second = total_rate
+    if exposure is None:
+        duration_seconds = (ts_end - ts_start).total_seconds()
+        if unit == "day":
+            duration_in_unit = duration_seconds / (24 * 60 * 60)
+        elif unit == "hour":
+            duration_in_unit = duration_seconds / (60 * 60)
+        elif unit == "minute":
+            duration_in_unit = duration_seconds / 60
+        elif unit == "second":
+            duration_in_unit = duration_seconds
+        else:
+            raise ValueError(
+                "Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'."
+            )
+        total_exposure = population * duration_in_unit
     else:
-        raise ValueError(
-            "Unsupported time unit. Use 'second', 'minute', 'hour', or 'day'."
-        )
+        total_exposure = exposure
+
+    mu = rate * total_exposure
+    duration_seconds = (ts_end - ts_start).total_seconds()
+    if duration_seconds <= 0:
+        rate_per_second = 0
+    else:
+        rate_per_second = mu / duration_seconds
 
     # For the homogeneous case, we call the sampler once over the whole interval
     return _sample_poisson_interval(
