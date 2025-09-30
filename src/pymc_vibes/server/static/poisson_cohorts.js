@@ -252,7 +252,8 @@ function renderSinglePosterior(
   xDomain,
   yDomain,
   chartHeight,
-  color = "#69b3a2"
+  color = "#69b3a2",
+  timeUnit = "day"
 ) {
   const { stats, curve } = summaryData;
   const statsData = stats.data[0];
@@ -301,7 +302,7 @@ function renderSinglePosterior(
     .attr("text-anchor", "middle")
     .attr("x", width / 2)
     .attr("y", height + margin.bottom - 10)
-    .text("Rate [events/day/unit]");
+    .text(`Rate [events/${timeUnit}/unit]`);
 
   svg
     .append("text")
@@ -330,7 +331,12 @@ function renderSinglePosterior(
     .text(`94% HDI: [${hdi_lower.toFixed(3)}, ${hdi_upper.toFixed(3)}]`);
 }
 
-export function renderPosteriors(container, data, groupNames) {
+export function renderPosteriors(
+  container,
+  data,
+  groupNames,
+  timeUnit = "day"
+) {
   // data is a dictionary of { groupName: PosteriorSummary }
   container.innerHTML = "";
 
@@ -427,13 +433,13 @@ export function renderPosteriors(container, data, groupNames) {
   combinedSvg
     .append("g")
     .attr("transform", `translate(0,${combinedHeight})`)
-    .call(d3.axisBottom(xScale));
+    .call(d3.axisBottom(xScale).ticks(5));
   combinedSvg
     .append("text")
     .attr("text-anchor", "middle")
     .attr("x", combinedWidth / 2)
     .attr("y", combinedHeight + margin.bottom - 10)
-    .text("Rate [events/day/unit]");
+    .text(`Rate [events/${timeUnit}/unit]`);
   combinedSvg
     .append("text")
     .attr("x", combinedWidth / 2)
@@ -484,57 +490,56 @@ export function renderPosteriors(container, data, groupNames) {
       localXDomain,
       globalYDomain,
       individualPlotHeight,
-      color(name)
+      color(name),
+      timeUnit
     );
   }
 }
 
-export function scalePosteriorData(posteriorData, exposures) {
+export function scalePosteriorData(posteriorData, exposures, timeUnit = "day") {
   if (!posteriorData) return null;
+
+  const timeFactors = {
+    day: 1,
+    hour: 24,
+    minute: 24 * 60,
+    second: 24 * 60 * 60,
+  };
+  const timeFactor = timeFactors[timeUnit] || 1;
+
   const scaledPosteriorData = {};
   for (const groupName in posteriorData) {
     const summary = posteriorData[groupName];
-    const exposure = exposures[groupName];
+    const exposure = exposures[groupName] || 1.0;
 
-    if (exposure) {
-      // Scale statistical summary
-      const scaledStats = JSON.parse(JSON.stringify(summary.stats)); // Deep copy
-      const rateMetrics = [
-        "mean",
-        "median",
-        "hdi_3%",
-        "hdi_97%",
-        "sd",
-        "r_hat",
-        "ess_bulk",
-        "ess_tail",
-      ];
-      const colIndices = scaledStats.columns.reduce((acc, col, i) => {
-        if (rateMetrics.includes(col)) acc[col] = i;
-        return acc;
-      }, {});
+    const scalingDivisor = exposure * timeFactor;
 
-      scaledStats.data.forEach((row) => {
-        for (const metric of ["mean", "median", "hdi_3%", "hdi_97%", "sd"]) {
-          if (colIndices[metric] !== undefined) {
-            row[colIndices[metric]] /= exposure;
-          }
+    // Scale statistical summary
+    const scaledStats = JSON.parse(JSON.stringify(summary.stats)); // Deep copy
+    const rateMetrics = ["mean", "median", "hdi_3%", "hdi_97%", "sd"];
+    const colIndices = scaledStats.columns.reduce((acc, col, i) => {
+      if (rateMetrics.includes(col)) acc[col] = i;
+      return acc;
+    }, {});
+
+    scaledStats.data.forEach((row) => {
+      for (const metric of rateMetrics) {
+        if (colIndices[metric] !== undefined) {
+          row[colIndices[metric]] /= scalingDivisor;
         }
-      });
+      }
+    });
 
-      // Scale KDE curve
-      const scaledCurve = {
-        x: summary.curve.x.map((val) => val / exposure),
-        y: summary.curve.y.map((val) => val * exposure),
-      };
+    // Scale KDE curve
+    const scaledCurve = {
+      x: summary.curve.x.map((val) => val / scalingDivisor),
+      y: summary.curve.y.map((val) => val * scalingDivisor),
+    };
 
-      scaledPosteriorData[groupName] = {
-        stats: scaledStats,
-        curve: scaledCurve,
-      };
-    } else {
-      scaledPosteriorData[groupName] = summary;
-    }
+    scaledPosteriorData[groupName] = {
+      stats: scaledStats,
+      curve: scaledCurve,
+    };
   }
   return scaledPosteriorData;
 }

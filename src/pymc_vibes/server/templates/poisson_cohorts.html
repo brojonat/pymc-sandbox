@@ -4,6 +4,7 @@
     return {
       groupBy: ["cohort"],
       exposures: {},
+      timeUnit: "day",
       rawPosteriorData: null,
       sortedCohortNames: [],
       _module: null, // To store the imported module
@@ -14,6 +15,7 @@
             this._module = module;
             this.fetchAllAndRender(); // Initial call
             this.$watch("groupBy", () => this.fetchAllAndRender());
+            this.$watch("timeUnit", () => this.rerenderPosteriors());
           })
           .catch((err) => {
             console.error("Error loading poisson cohorts module:", err);
@@ -66,23 +68,21 @@
 
         const scaledData = this._module.scalePosteriorData(
           this.rawPosteriorData,
-          this.exposures
+          this.exposures,
+          this.timeUnit
         );
         if (scaledData) {
           const container = document.getElementById("chart-container");
           this._module.renderPosteriors(
             container,
             scaledData,
-            this.sortedCohortNames
+            this.sortedCohortNames,
+            this.timeUnit
           );
         }
       },
 
       renderExposureInputs(cohorts) {
-        document
-          .getElementById("group-by-container")
-          ?.classList.remove("hidden");
-
         const container = document.getElementById("exposure-inputs");
         if (!container) return;
         container.innerHTML = "";
@@ -91,6 +91,12 @@
           "exposure-controls-container"
         );
         if (cohorts && cohorts.length > 0) {
+          document
+            .getElementById("group-by-container")
+            ?.classList.remove("hidden");
+          document
+            .getElementById("rate-time-unit-container")
+            ?.classList.remove("hidden");
           controlsContainer.classList.remove("hidden");
           cohorts.forEach((cohortName) => {
             const inputGroup = document.createElement("div");
@@ -178,6 +184,21 @@
     >
       <h3 class="font-semibold text-lg mb-2">Relative Population Size</h3>
       <div id="exposure-inputs" @change="handleExposureChange($event)"></div>
+    </div>
+    <div
+      id="rate-time-unit-container"
+      class="p-4 border rounded-md bg-gray-50 hidden"
+    >
+      <h3 class="font-semibold text-lg mb-2">Rate Time Unit</h3>
+      <select
+        x-model="timeUnit"
+        class="form-select rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      >
+        <option value="day">Day</option>
+        <option value="hour">Hour</option>
+        <option value="minute">Minute</option>
+        <option value="second">Second</option>
+      </select>
     </div>
   </div>
 

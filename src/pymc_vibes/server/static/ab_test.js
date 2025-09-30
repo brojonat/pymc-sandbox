@@ -140,18 +140,22 @@ function renderSinglePosterior(
     .style("font-weight", "bold")
     .text(title);
 
-  const statsText =
-    `Mean: ${mean.toFixed(3)} | ` +
-    `Median: ${median.toFixed(3)} | ` +
-    `94% HDI: [${hdi_lower.toFixed(3)}, ${hdi_upper.toFixed(3)}]`;
-
-  svg
+  const statsLabel = svg
     .append("text")
     .attr("x", width / 2)
-    .attr("y", 20 - margin.top / 2)
+    .attr("y", 15 - margin.top / 2)
     .attr("text-anchor", "middle")
-    .style("font-size", "12px")
-    .text(statsText);
+    .style("font-size", "12px");
+
+  statsLabel
+    .append("tspan")
+    .text(`Mean: ${mean.toFixed(3)} | Median: ${median.toFixed(3)}`);
+
+  statsLabel
+    .append("tspan")
+    .attr("x", width / 2)
+    .attr("dy", "1.2em")
+    .text(`94% HDI: [${hdi_lower.toFixed(3)}, ${hdi_upper.toFixed(3)}]`);
 }
 
 function renderPosteriors(container, data) {
@@ -159,7 +163,15 @@ function renderPosteriors(container, data) {
   container.innerHTML = "";
 
   // --- 1. Calculate Global Domains & Sort Variants ---
-  const variantNames = Object.keys(data.variants).sort();
+  const variantNames = Object.keys(data.variants).sort((a, b) => {
+    const summaryA = data.variants[a];
+    const summaryB = data.variants[b];
+    const meanA =
+      summaryA.stats.data[0][summaryA.stats.columns.indexOf("mean")];
+    const meanB =
+      summaryB.stats.data[0][summaryB.stats.columns.indexOf("mean")];
+    return meanA - meanB;
+  });
   const allVariants = variantNames.map((name) => data.variants[name]);
   const allX = allVariants.flatMap((v) => v.curve.x);
   const allY = allVariants.flatMap((v) => v.curve.y);
@@ -284,11 +296,13 @@ function renderPosteriors(container, data) {
     const variantContainer = document.createElement("div");
     leftColumnContainer.appendChild(variantContainer);
 
+    const localXDomain = d3.extent(summary.curve.x);
+
     renderSinglePosterior(
       variantContainer,
       `Posterior for ${name}`,
       summary,
-      globalXDomain,
+      localXDomain,
       globalYDomain,
       individualPlotHeight,
       color(name)
